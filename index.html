@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BrainLoom - Knowledge Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0"
+    />
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Lexend', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              primary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+                800: '#1e40af',
+                900: '#1e3a8a',
+                950: '#172554',
+              },
+              dark: {
+                bg: '#0f172a',
+                surface: '#1e293b',
+                border: '#334155',
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.3s ease-in-out',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      /* Custom scrollbar for better aesthetics */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 4px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background-color: #475569;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: #94a3b8;
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
+        background-color: #64748b;
+      }
+      
+      /* Reset specific styles for rich text content */
+      .rich-content h1 { @apply text-3xl font-bold mb-4 mt-6 text-gray-900 dark:text-white font-display; }
+      .rich-content h2 { @apply text-2xl font-semibold mb-3 mt-5 text-gray-800 dark:text-gray-100 font-display; }
+      .rich-content h3 { @apply text-xl font-semibold mb-2 mt-4 text-gray-800 dark:text-gray-100 font-display; }
+      .rich-content p { @apply mb-4 leading-relaxed text-gray-600 dark:text-gray-300; }
+      .rich-content ul { @apply list-disc list-inside mb-4 ml-2 text-gray-600 dark:text-gray-300; }
+      .rich-content ol { @apply list-decimal list-inside mb-4 ml-2 text-gray-600 dark:text-gray-300; }
+      .rich-content a { @apply text-primary-600 hover:underline underline-offset-2; }
+      .rich-content blockquote { @apply border-l-4 border-primary-500 pl-4 italic my-4 text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 py-2 rounded-r; }
+      .rich-content img { @apply rounded-lg shadow-md max-w-full h-auto my-4; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@^16.1.0/",
+    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@^16.1.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div id="root"></div>
+  </body>
+</html>
