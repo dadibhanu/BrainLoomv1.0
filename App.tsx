@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useParams, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import { login, fetchRootTopics, fetchTopicBySlug, createTopic, deleteTopic, reorderTopics } from './services/api';
+import { login, fetchRootTopics, fetchTopicBySlug, createTopic, deleteTopic, reorderTopics, saveTopicContent } from './services/api';
 import { RichContent } from './components/RichContent';
 import { Topic, AuthResponse, User, Block, TopicDetailResponse } from './types';
 
@@ -21,6 +21,208 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({ user: null, token: null, loginUser: async () => {}, logout: () => {} });
 
 // --- Admin Modals ---
+
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, title, message, onConfirm, onCancel, isLoading }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white dark:bg-dark-surface w-full max-w-sm rounded-2xl shadow-2xl p-6 border border-gray-200 dark:border-dark-border">
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{title}</h3>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button 
+            onClick={onCancel}
+            disabled={isLoading}
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+          >
+            {isLoading && <span className="material-symbols-rounded animate-spin text-sm">progress_activity</span>}
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface ContentEditorModalProps {
+  isOpen: boolean;
+  topicId: number;
+  initialContent: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const ContentEditorModal: React.FC<ContentEditorModalProps> = ({ isOpen, topicId, initialContent, onClose, onSuccess }) => {
+  const [content, setContent] = useState(initialContent);
+  const [viewMode, setViewMode] = useState<'split' | 'edit' | 'preview'>('split');
+  const [loading, setLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Sync content when opening
+  useEffect(() => {
+    if (isOpen) setContent(initialContent || '');
+  }, [isOpen, initialContent]);
+
+  // Handle window resize to auto-adjust view mode for mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) setViewMode('edit');
+      else setViewMode('split');
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await saveTopicContent(topicId, content);
+      onSuccess();
+      onClose();
+    } catch (error) {
+      alert('Failed to save content');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const insertAtCursor = (textToInsert: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const previousContent = content;
+    const newContent = previousContent.substring(0, start) + textToInsert + previousContent.substring(end);
+    
+    setContent(newContent);
+    
+    // Restore focus and move cursor
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + textToInsert.length;
+    }, 0);
+  };
+
+  const ToolbarButton = ({ icon, label, insert }: { icon: string, label: string, insert: string }) => (
+    <button 
+      type="button"
+      onClick={() => insertAtCursor(insert)}
+      className="flex flex-col items-center justify-center p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 min-w-[3rem] gap-1 group"
+      title={label}
+    >
+      <span className="material-symbols-rounded text-xl group-hover:text-primary-600 dark:group-hover:text-primary-400">{icon}</span>
+      <span className="text-[10px] font-medium hidden md:block">{label}</span>
+    </button>
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-white dark:bg-dark-bg flex flex-col animate-fade-in">
+      {/* Header */}
+      <div className="h-16 px-6 border-b border-gray-200 dark:border-dark-border flex items-center justify-between bg-white dark:bg-dark-surface">
+        <div className="flex items-center gap-4">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+            <span className="material-symbols-rounded">close</span>
+          </button>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white hidden sm:block">Edit Content</h2>
+        </div>
+        
+        <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1 lg:hidden">
+          <button 
+            onClick={() => setViewMode('edit')}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'edit' ? 'bg-white dark:bg-dark-bg shadow text-primary-600' : 'text-gray-500'}`}
+          >
+            Editor
+          </button>
+          <button 
+            onClick={() => setViewMode('preview')}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${viewMode === 'preview' ? 'bg-white dark:bg-dark-bg shadow text-primary-600' : 'text-gray-500'}`}
+          >
+            Preview
+          </button>
+        </div>
+
+        <button 
+          onClick={handleSave}
+          disabled={loading}
+          className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-70 flex items-center gap-2 font-medium shadow-lg shadow-primary-500/20"
+        >
+          {loading ? <span className="material-symbols-rounded animate-spin">progress_activity</span> : <span className="material-symbols-rounded">save</span>}
+          Save Changes
+        </button>
+      </div>
+
+      {/* Toolbar */}
+      <div className="px-4 py-2 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-surface/50 overflow-x-auto flex gap-1 items-center no-scrollbar">
+        <ToolbarButton icon="title" label="H1" insert={"<h1>Heading 1</h1>\n"} />
+        <ToolbarButton icon="header" label="H2" insert={"<h2>Heading 2</h2>\n"} />
+        <ToolbarButton icon="format_paragraph" label="Para" insert={"<p>Paragraph text...</p>\n"} />
+        <div className="w-px h-8 bg-gray-300 dark:bg-gray-700 mx-1"></div>
+        <ToolbarButton icon="format_bold" label="Bold" insert={"<b>Bold text</b>"} />
+        <ToolbarButton icon="format_list_bulleted" label="List" insert={"<ul>\n  <li>Item 1</li>\n  <li>Item 2</li>\n</ul>\n"} />
+        <div className="w-px h-8 bg-gray-300 dark:bg-gray-700 mx-1"></div>
+        <ToolbarButton icon="code_blocks" label="Code" insert={"<code language=\"javascript\">\nconsole.log('Hello');\n</code>\n"} />
+        <ToolbarButton icon="tab" label="Code Tab" insert={"<code-collection>\n  <code language=\"python\">\nprint('Hello')\n  </code>\n  <code language=\"javascript\">\nconsole.log('Hello')\n  </code>\n</code-collection>\n"} />
+        <div className="w-px h-8 bg-gray-300 dark:bg-gray-700 mx-1"></div>
+        <ToolbarButton icon="info" label="Note" insert={"<note type=\"info\">Information note...</note>\n"} />
+        <ToolbarButton icon="warning" label="Warning" insert={"<note type=\"warning\">Warning note...</note>\n"} />
+        <ToolbarButton icon="check_circle" label="Success" insert={"<note type=\"success\">Success note...</note>\n"} />
+        <div className="w-px h-8 bg-gray-300 dark:bg-gray-700 mx-1"></div>
+        <ToolbarButton icon="image" label="Image" insert={"<img src=\"https://...\" />\n"} />
+        <ToolbarButton icon="view_carousel" label="Carousel" insert={"<carousel>\n  <img src=\"https://...\" />\n  <img src=\"https://...\" />\n</carousel>\n"} />
+      </div>
+
+      {/* Editor Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Input Pane */}
+        <div className={`flex-1 flex flex-col border-r border-gray-200 dark:border-dark-border transition-all ${viewMode === 'preview' ? 'hidden' : 'block'}`}>
+          <div className="bg-[#1e1e1e] text-gray-400 text-xs px-4 py-1 font-mono uppercase tracking-wider flex justify-between">
+            <span>Source Code (HTML/XML)</span>
+            <span>{content.length} chars</span>
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="flex-1 w-full bg-[#1e1e1e] text-gray-200 font-mono text-sm p-6 outline-none resize-none leading-relaxed"
+            placeholder="Start typing your rich content here..."
+            spellCheck={false}
+          />
+        </div>
+
+        {/* Preview Pane */}
+        <div className={`flex-1 bg-gray-50 dark:bg-dark-bg overflow-y-auto transition-all ${viewMode === 'edit' ? 'hidden' : 'block'}`}>
+          <div className="sticky top-0 bg-white/90 dark:bg-dark-surface/90 backdrop-blur border-b border-gray-200 dark:border-dark-border px-6 py-2 z-10 flex justify-between items-center">
+             <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">Live Preview</span>
+          </div>
+          <div className="p-8 max-w-4xl mx-auto prose prose-lg dark:prose-invert">
+             <RichContent htmlContent={content} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface TopicFormProps {
   parentId: number | null;
@@ -292,12 +494,13 @@ const TopicCard: React.FC<{
       
       {isAdmin && (
         <button 
+          type="button"
           onClick={(e) => {
              e.preventDefault();
              e.stopPropagation();
-             if(window.confirm('Are you sure you want to delete this topic?')) onDelete?.(topic.id);
+             onDelete?.(topic.id);
           }}
-          className="absolute top-2 right-2 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
+          className="absolute top-2 right-2 p-2 bg-white/90 dark:bg-black/50 backdrop-blur-md rounded-full text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm opacity-100 lg:opacity-0 lg:group-hover:opacity-100 z-20"
           title="Delete Topic"
         >
           <span className="material-symbols-rounded text-sm">delete</span>
@@ -337,6 +540,8 @@ const Home = () => {
   const [isReordering, setIsReordering] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [draggedItem, setDraggedItem] = useState<number | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; id: number | null }>({ isOpen: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   const isAdmin = user?.role === 'admin';
 
@@ -409,19 +614,36 @@ const Home = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!isAdmin) return;
+  const requestDelete = (id: number) => {
+    setDeleteConfirmation({ isOpen: true, id });
+  }
+
+  const confirmDelete = async () => {
+    if (!isAdmin || deleteConfirmation.id === null) return;
+    setDeleting(true);
     try {
-      await deleteTopic(id);
-      setTopics(topics.filter(t => t.id !== id));
-      setFilteredTopics(filteredTopics.filter(t => t.id !== id));
+      await deleteTopic(deleteConfirmation.id);
+      setTopics(topics.filter(t => t.id !== deleteConfirmation.id));
+      setFilteredTopics(filteredTopics.filter(t => t.id !== deleteConfirmation.id));
+      setDeleteConfirmation({ isOpen: false, id: null });
     } catch (err) {
       alert('Failed to delete topic');
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
     <div className="flex flex-col min-h-screen">
+      <ConfirmationModal 
+        isOpen={deleteConfirmation.isOpen}
+        title="Delete Topic"
+        message="Are you sure you want to delete this topic? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirmation({ isOpen: false, id: null })}
+        isLoading={deleting}
+      />
+
       {showAddModal && (
         <TopicFormModal 
           parentId={null} 
@@ -497,7 +719,7 @@ const Home = () => {
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 isAdmin={isAdmin}
-                onDelete={handleDelete}
+                onDelete={requestDelete}
               />
             ))}
           </div>
@@ -517,6 +739,8 @@ const Sidebar = ({ items, topic, parentSlug, isOpen, onClose, onRefresh }: { ite
   const [isEditMode, setIsEditMode] = useState(false);
   const [showAddSubModal, setShowAddSubModal] = useState(false);
   const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [deleteConf, setDeleteConf] = useState<{isOpen: boolean, id: number | null}>({isOpen: false, id: null});
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if(items) setLocalItems(items.sort((a, b) => a.order_no - b.order_no));
@@ -553,19 +777,34 @@ const Sidebar = ({ items, topic, parentSlug, isOpen, onClose, onRefresh }: { ite
     }
   };
 
-  const deleteSubtopic = async (id: number) => {
-     if(!window.confirm("Delete this subtopic?")) return;
+  const confirmDeleteSubtopic = async () => {
+     if(!deleteConf.id) return;
+     setDeleting(true);
      try {
-       await deleteTopic(id);
-       setLocalItems(localItems.filter(i => i.id !== id));
+       await deleteTopic(deleteConf.id);
+       setLocalItems(localItems.filter(i => i.id !== deleteConf.id));
+       setDeleteConf({isOpen: false, id: null});
        onRefresh?.();
-     } catch(e) { alert('Delete failed'); }
+     } catch(e) { 
+        alert('Delete failed'); 
+     } finally {
+        setDeleting(false);
+     }
   };
 
   if (!localItems || (localItems.length === 0 && !isAdmin)) return null;
 
   return (
     <>
+      <ConfirmationModal 
+        isOpen={deleteConf.isOpen}
+        title="Delete Subtopic"
+        message="Are you sure you want to delete this subtopic?"
+        onCancel={() => setDeleteConf({isOpen: false, id: null})}
+        onConfirm={confirmDeleteSubtopic}
+        isLoading={deleting}
+      />
+
       {showAddSubModal && (
          <TopicFormModal 
             parentId={topic.id} 
@@ -615,7 +854,15 @@ const Sidebar = ({ items, topic, parentSlug, isOpen, onClose, onRefresh }: { ite
                      <span className="truncate">{child.title}</span>
                    </Link>
                    {isEditMode && (
-                     <button onClick={() => deleteSubtopic(child.id)} className="p-1 text-red-400 hover:text-red-600">
+                     <button 
+                       type="button"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         e.preventDefault();
+                         setDeleteConf({isOpen: true, id: child.id});
+                       }}
+                       className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                     >
                        <span className="material-symbols-rounded text-sm">close</span>
                      </button>
                    )}
@@ -675,6 +922,9 @@ const TopicViewer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadTopicData = () => {
     if (!slug) return;
@@ -692,8 +942,9 @@ const TopicViewer = () => {
     loadTopicData();
   }, [slug]);
 
-  const handleDeleteCurrent = async () => {
-     if (!data || !window.confirm("Are you sure you want to delete this topic and all its contents?")) return;
+  const confirmDeletePage = async () => {
+     if (!data) return;
+     setDeleting(true);
      try {
        await deleteTopic(data.topic.id);
        // Navigate up one level if possible, else home
@@ -706,6 +957,9 @@ const TopicViewer = () => {
        }
      } catch (e) {
        alert("Failed to delete topic");
+     } finally {
+        setDeleting(false);
+        setShowDeleteModal(false);
      }
   };
 
@@ -738,8 +992,32 @@ const TopicViewer = () => {
   // Always show sidebar if admin to allow adding subtopics
   const hasSidebar = (children && children.length > 0) || isAdmin;
 
+  // Prepare initial content for editor
+  const editorInitialContent = sortedBlocks.length > 0 
+    ? sortedBlocks[0].components?.[0]?.json?.content || '' 
+    : '';
+
   return (
     <div className="flex flex-col min-h-screen">
+      <ConfirmationModal 
+        isOpen={showDeleteModal}
+        title="Delete Page"
+        message="Are you sure you want to delete this page and all its contents? This cannot be undone."
+        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeletePage}
+        isLoading={deleting}
+      />
+
+      {showEditor && (
+        <ContentEditorModal
+          isOpen={showEditor}
+          topicId={topic.id}
+          initialContent={editorInitialContent}
+          onClose={() => setShowEditor(false)}
+          onSuccess={loadTopicData}
+        />
+      )}
+
       {/* Mobile Top Bar */}
       <div className="lg:hidden bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border px-4 py-3 flex items-center justify-between sticky top-16 z-30">
          <div className="flex items-center gap-2 overflow-hidden">
@@ -795,12 +1073,23 @@ const TopicViewer = () => {
              </nav>
 
              {isAdmin && (
-               <button 
-                 onClick={handleDeleteCurrent}
-                 className="hidden lg:flex items-center gap-2 px-3 py-1.5 text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-300 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 text-sm font-medium transition-colors"
-               >
-                 <span className="material-symbols-rounded text-base">delete</span> Delete Page
-               </button>
+               <div className="flex items-center gap-2">
+                 <button 
+                   onClick={() => setShowEditor(true)}
+                   className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium transition-colors shadow-sm"
+                 >
+                   <span className="material-symbols-rounded text-base">edit_note</span>
+                   <span className="hidden sm:inline">Edit Content</span>
+                 </button>
+                 <button 
+                   type="button"
+                   onClick={() => setShowDeleteModal(true)}
+                   className="flex items-center gap-2 px-3 py-1.5 text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-300 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 text-sm font-medium transition-colors"
+                 >
+                   <span className="material-symbols-rounded text-base">delete</span> 
+                   <span className="hidden sm:inline">Delete Page</span>
+                 </button>
+               </div>
              )}
            </div>
 

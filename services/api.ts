@@ -97,7 +97,38 @@ export const reorderTopics = async (parentId: number | 'root', items: { id: numb
 
   if (!response.ok) {
     // Fallback: If strict root reorder endpoint doesn't exist, we might need a specific one.
-    // Based on prompt: topics/428/reorder. 
     throw new Error('Failed to save order');
+  }
+};
+
+export const saveTopicContent = async (topicId: number, content: string): Promise<void> => {
+  // Construct the payload structure expected by the API
+  const payload = {
+    topic_id: topicId,
+    block_type: "page",
+    block_order: 0,
+    metadata: {
+        tags: ["JSON", "Editor"]
+    },
+    components: [
+        {
+            type: "json_block",
+            json: {
+                type: "rich_text",
+                content: content,
+                updated_at: new Date().toISOString()
+            }
+        }
+    ]
+  };
+
+  const response = await fetch(`${API_BASE_URL}/topics/${topicId}/content`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to save content');
   }
 };
