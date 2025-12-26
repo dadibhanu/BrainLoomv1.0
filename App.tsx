@@ -29,7 +29,7 @@ const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-dark-surface/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto px-4 sm:px-6">
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center gap-2">
             <Link to="/" className="flex items-center gap-2 group">
@@ -168,7 +168,7 @@ const Home = () => {
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
         
-        <div className="max-w-7xl mx-auto px-4 py-20 sm:px-6 lg:px-8 relative z-10 text-center">
+        <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto px-4 py-20 sm:px-6 relative z-10 text-center">
           <h1 className="text-4xl md:text-6xl font-black text-gray-900 dark:text-white tracking-tight mb-6 font-display">
             Expand Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-purple-600">Knowledge</span>
           </h1>
@@ -200,7 +200,7 @@ const Home = () => {
       </div>
 
       {/* Topics Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto px-4 sm:px-6 py-16">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <span className="material-symbols-rounded text-primary-500">category</span>
@@ -231,7 +231,7 @@ const Home = () => {
 
       {/* Features Section */}
       <div className="bg-gray-50 dark:bg-dark-surface py-20 border-y border-gray-200 dark:border-dark-border">
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+         <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto px-4 sm:px-6">
            <div className="text-center mb-16">
              <h2 className="text-3xl font-bold text-gray-900 dark:text-white font-display mb-4">Why Choose BrainLoom?</h2>
              <p className="text-gray-500 dark:text-gray-400">Everything you need to master your next skill.</p>
@@ -272,7 +272,7 @@ const Home = () => {
       </div>
       
       {/* Footer CTA */}
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+      <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto px-4 py-20 text-center">
          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Ready to start learning?</h2>
          <Link to="/" className="text-primary-600 hover:text-primary-700 font-semibold flex items-center justify-center gap-2">
             Browse All Topics <span className="material-symbols-rounded">arrow_forward</span>
@@ -282,39 +282,25 @@ const Home = () => {
   );
 };
 
-const Sidebar = ({ topic, subTopics, parentSlug }: { topic: Topic, subTopics?: Topic[], parentSlug?: string }) => {
-  // Use passed subTopics, fallback to topic.children if valid
-  const items = subTopics || topic.children || [];
-  
-  // If no items, we return null to not render anything, allowing content to expand.
-  if (items.length === 0) {
-     return null;
-  }
-  
+// Reusable content for Sidebar to allow usage in both desktop sticky column and mobile drawer
+const SidebarContent = ({ items, topic, parentSlug, onItemClick }: { items: Topic[], topic: Topic, parentSlug?: string, onItemClick?: () => void }) => {
   return (
-    <div className="w-full lg:w-72 shrink-0 lg:order-last">
-       <div className="sticky top-24 bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-xl p-5 shadow-sm">
-         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-           <span className="material-symbols-rounded text-base">toc</span>
-           In this Module
-         </h3>
-         <div className="flex flex-col gap-1">
-            {items.sort((a,b) => a.order_no - b.order_no).map(child => {
-              const linkPath = `/topic/${topic.full_path ? topic.full_path + '/' + child.slug : parentSlug ? parentSlug + '/' + child.slug : child.slug}`;
-              
-              return (
-                <Link 
-                  key={child.id}
-                  to={linkPath}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                >
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0"></div>
-                  <span className="truncate">{child.title}</span>
-                </Link>
-              )
-            })}
-         </div>
-       </div>
+    <div className="flex flex-col gap-1">
+       {items.sort((a,b) => a.order_no - b.order_no).map(child => {
+         const linkPath = `/topic/${topic.full_path ? topic.full_path + '/' + child.slug : parentSlug ? parentSlug + '/' + child.slug : child.slug}`;
+         
+         return (
+           <Link 
+             key={child.id}
+             to={linkPath}
+             onClick={onItemClick}
+             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+           >
+             <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0"></div>
+             <span className="truncate">{child.title}</span>
+           </Link>
+         )
+       })}
     </div>
   );
 }
@@ -324,6 +310,7 @@ const TopicViewer = () => {
   const [data, setData] = useState<TopicDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -337,7 +324,12 @@ const TopicViewer = () => {
       .finally(() => setLoading(false));
   }, [slug]);
 
-  if (loading) return <div className="max-w-4xl mx-auto p-8"><div className="w-2/3 h-10 bg-gray-200 dark:bg-dark-surface rounded animate-pulse mb-6"></div><div className="space-y-4">{[1,2,3].map(i => <div key={i} className="w-full h-32 bg-gray-200 dark:bg-dark-surface rounded animate-pulse"></div>)}</div></div>;
+  // Close sidebar when navigating to a new topic (via sidebar links)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [slug]);
+
+  if (loading) return <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto p-8"><div className="w-2/3 h-10 bg-gray-200 dark:bg-dark-surface rounded animate-pulse mb-6"></div><div className="space-y-4">{[1,2,3].map(i => <div key={i} className="w-full h-32 bg-gray-200 dark:bg-dark-surface rounded animate-pulse"></div>)}</div></div>;
   
   if (error || !data) return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
@@ -353,11 +345,12 @@ const TopicViewer = () => {
   // If topic has children but no content blocks (Root/Folder topic), display grid of children
   const isFolder = sortedBlocks.length === 0 && children && children.length > 0;
   
-  // Calculate if sidebar should be shown. Changed logic to always show sidebar if children exist, matching the layout of topics with content.
+  // Calculate if sidebar should be shown
   const showSidebar = children && children.length > 0;
+  const sidebarItems = children || [];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[80vh]">
+    <div className="w-[95%] xl:w-[90%] max-w-[2000px] mx-auto px-4 sm:px-6 py-8 min-h-[80vh]">
       {/* Breadcrumbs */}
       <nav className="flex items-center text-sm text-gray-500 mb-8 overflow-x-auto whitespace-nowrap pb-2">
          <Link to="/" className="hover:text-primary-600 transition-colors">Topics</Link>
@@ -425,11 +418,61 @@ const TopicViewer = () => {
           </div>
         </div>
 
-        {/* Sidebar for Subtopics: Only render if there are subtopics */}
+        {/* Desktop Sidebar: Visible only on lg screens */}
         {showSidebar && (
-           <Sidebar topic={topic} subTopics={children} parentSlug={slug} />
+           <div className="hidden lg:block w-80 shrink-0 lg:order-last">
+              <div className="sticky top-24 bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-xl p-5 shadow-sm">
+                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span className="material-symbols-rounded text-base">toc</span>
+                    In this Module
+                 </h3>
+                 <SidebarContent items={sidebarItems} topic={topic} parentSlug={slug} />
+              </div>
+           </div>
         )}
       </div>
+
+      {/* Mobile Sidebar Controls */}
+      {showSidebar && (
+        <>
+          {/* Floating Action Button for Mobile */}
+          <button 
+             onClick={() => setIsSidebarOpen(true)}
+             className="lg:hidden fixed bottom-6 right-6 z-40 bg-primary-600 hover:bg-primary-700 text-white p-4 rounded-full shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+             title="Open Module Menu"
+          >
+             <span className="material-symbols-rounded text-2xl">menu_book</span>
+          </button>
+
+          {/* Mobile Drawer (Overlay) */}
+          {isSidebarOpen && (
+             <div className="fixed inset-0 z-50 lg:hidden flex justify-end">
+                {/* Backdrop */}
+                <div 
+                   className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" 
+                   onClick={() => setIsSidebarOpen(false)}
+                ></div>
+                
+                {/* Sidebar Panel */}
+                <div className="relative w-80 h-full bg-white dark:bg-dark-surface shadow-2xl p-6 overflow-y-auto animate-fade-in border-l border-gray-200 dark:border-dark-border">
+                   <div className="flex justify-between items-center mb-8">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                         <span className="material-symbols-rounded text-primary-600">toc</span>
+                         In This Module
+                      </h3>
+                      <button 
+                         onClick={() => setIsSidebarOpen(false)} 
+                         className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                      >
+                         <span className="material-symbols-rounded">close</span>
+                      </button>
+                   </div>
+                   <SidebarContent items={sidebarItems} topic={topic} parentSlug={slug} />
+                </div>
+             </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
