@@ -1,3 +1,4 @@
+
 export interface User {
   id: number;
   name: string;
@@ -59,7 +60,31 @@ export interface TopicDetailResponse {
   children: Topic[];
 }
 
-export interface BreadcrumbItem {
+// Editor Types
+export type BlockType = 'text' | 'heading' | 'code' | 'multi-code' | 'note' | 'image' | 'carousel';
+
+export interface CarouselImage {
+  id: string;
+  url: string;
+  caption: string;
+}
+
+export interface CodeSnippet {
+  id: string;
   label: string;
-  path: string;
+  language: string;
+  content: string;
+}
+
+export interface EditorBlock {
+  id: string;
+  type: BlockType;
+  content: string;
+  metadata?: {
+    language?: string;
+    level?: 'info' | 'warning' | 'tip';
+    fontSize?: 'sm' | 'base' | 'lg' | 'xl';
+    images?: CarouselImage[];
+    snippets?: CodeSnippet[];
+  };
 }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -7,43 +8,9 @@ interface RichContentProps {
 }
 
 // Helpers to identify custom components embedded in the HTML string
-const unescapeCustomTags = (html: string) => {
+const prepareHtmlForParsing = (html: string) => {
   let processed = html;
-
-  // 1. Aggressively unwrap P tags from start/end markers
-  // Handles <p>&lt;tag&gt;</p> and <p>&lt;/tag&gt;</p>
-  processed = processed.replace(/<p[^>]*>\s*(&lt;\/?(carousel|code-collection|code).*?&gt;)\s*<\/p>/gi, '$1');
-  
-  // 2. Process specific tags
-  
-  // Custom Code: Regex to capture content between encoded tags. 
-  // We accept that content might contain HTML tags (like <p>) due to editor formatting.
-  processed = processed.replace(/&lt;code language="(.*?)"&gt;([\s\S]*?)&lt;\/code&gt;/gi, (match, lang, content) => {
-     // Clean up the code content
-     let cleanContent = content
-        .replace(/<\/p>\s*<p>/g, '\n') // Adjacent paragraphs -> newline
-        .replace(/<\/p>/g, '\n')       // End of paragraph -> newline
-        .replace(/<br\s*\/?>/g, '\n')  // BR -> newline
-        .replace(/<[^>]+>/g, '')       // Strip any remaining tags
-        // Decode entities
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, ' ');
-
-     return `<custom-code language="${lang}">${cleanContent}</custom-code>`;
-  });
-
-  // Other custom tags
-  processed = processed
-    .replace(/&lt;note type="(.*?)"&gt;(.*?)&lt;\/note&gt;/gi, '<custom-note type="$1">$2</custom-note>')
-    .replace(/&lt;code-collection&gt;([\s\S]*?)&lt;\/code-collection&gt;/gi, '<custom-code-collection>$1</custom-code-collection>')
-    .replace(/&lt;carousel&gt;([\s\S]*?)&lt;\/carousel&gt;/gi, '<custom-carousel>$1</custom-carousel>')
-    .replace(/&lt;image src="(.*?)" \/&gt;/gi, '<custom-image src="$1" />')
-    .replace(/&lt;img src="(.*?)" \/&gt;/gi, '<custom-image src="$1" />');
-
+  processed = processed.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   return processed;
 };
 
@@ -51,6 +18,7 @@ const NoteBlock: React.FC<{ type: string; children: React.ReactNode }> = ({ type
   const styles: Record<string, string> = {
     info: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200',
     warning: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200',
+    tip: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200',
     success: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200',
     error: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200',
   };
@@ -58,19 +26,20 @@ const NoteBlock: React.FC<{ type: string; children: React.ReactNode }> = ({ type
   const icons: Record<string, string> = {
     info: 'info',
     warning: 'warning',
+    tip: 'lightbulb',
     success: 'check_circle',
     error: 'error',
   };
 
   return (
-    <div className={`flex gap-3 p-4 my-6 rounded-lg border ${styles[type] || styles.info} shadow-sm`}>
-      <span className="material-symbols-rounded shrink-0">{icons[type] || 'info'}</span>
-      <div className="flex-1 text-sm md:text-base">{children}</div>
+    <div className={`flex gap-3 p-5 my-8 rounded-xl border-l-4 ${styles[type] || styles.info} shadow-sm transition-colors`}>
+      <span className="material-symbols-rounded shrink-0 text-2xl">{icons[type] || 'info'}</span>
+      <div className="flex-1 text-base md:text-lg font-medium leading-relaxed">{children}</div>
     </div>
   );
 };
 
-const CodeRenderer = ({ language, code }: { language: string; code: string }) => {
+const CodeRenderer: React.FC<{ language: string; code: string; title?: string }> = ({ language, code, title }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -80,24 +49,31 @@ const CodeRenderer = ({ language, code }: { language: string; code: string }) =>
   };
 
   return (
-    <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-dark-border bg-[#1e1e1e] shadow-md my-4 max-w-full">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#333]">
-        <span className="text-xs text-gray-400 font-mono uppercase font-bold">{language || 'text'}</span>
+    <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-dark-border bg-[#0d1117] shadow-xl my-8 max-w-full group">
+      <div className="flex items-center justify-between px-5 py-3 bg-[#161b22] border-b border-gray-800">
+        <div className="flex items-center gap-2">
+           <div className="flex gap-1.5">
+             <div className="w-2.5 h-2.5 rounded-full bg-red-500/40 group-hover:bg-red-500/80 transition-colors"></div>
+             <div className="w-2.5 h-2.5 rounded-full bg-amber-500/40 group-hover:bg-amber-500/80 transition-colors"></div>
+             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/40 group-hover:bg-emerald-500/80 transition-colors"></div>
+           </div>
+           <span className="ml-4 text-[10px] text-gray-400 font-mono uppercase font-black tracking-widest">{title || language || 'text'}</span>
+        </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-xs text-gray-500 hover:text-white transition-all bg-gray-800/30 hover:bg-gray-800/80 px-3 py-1.5 rounded-lg"
         >
-          <span className="material-symbols-rounded text-[16px]">
+          <span className="material-symbols-rounded text-base">
             {copied ? 'check' : 'content_copy'}
           </span>
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto scrollbar-hide">
         <SyntaxHighlighter
           language={language || 'text'}
           style={vscDarkPlus}
-          customStyle={{ margin: 0, padding: '1.5rem', fontSize: '0.9rem', lineHeight: '1.6' }}
+          customStyle={{ margin: 0, padding: '1.5rem', fontSize: '0.95rem', lineHeight: '1.7', background: 'transparent' }}
           showLineNumbers={false} 
         >
           {code.trim()}
@@ -107,90 +83,110 @@ const CodeRenderer = ({ language, code }: { language: string; code: string }) =>
   );
 };
 
-const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, code }) => {
-  return <div className="w-full"><CodeRenderer language={language} code={code} /></div>;
-};
+const MultiCodeRenderer: React.FC<{ snippets: { label: string; language: string; content: string }[] }> = ({ snippets }) => {
+  const [active, setActive] = useState(0);
 
-interface CodeTabItem {
-  language: string;
-  code: string;
-}
-
-const CodeTabs: React.FC<{ items: CodeTabItem[] }> = ({ items }) => {
-  const [activeTab, setActiveTab] = useState(0);
-
-  if (!items || items.length === 0) return null;
+  if (!snippets || snippets.length === 0) return null;
 
   return (
-    <div className="my-8 w-full">
-      <div className="flex items-center gap-1 mb-0 overflow-x-auto pb-0 scrollbar-hide border-b border-gray-200 dark:border-dark-border px-1">
-        {items.map((item, idx) => (
+    <div className="my-10 rounded-2xl overflow-hidden border border-gray-200 dark:border-dark-border bg-[#0d1117] shadow-2xl">
+      <div className="flex items-center bg-[#161b22] border-b border-gray-800 overflow-x-auto scrollbar-hide">
+        {snippets.map((s, idx) => (
           <button
             key={idx}
-            onClick={() => setActiveTab(idx)}
-            className={`px-4 py-2 rounded-t-lg text-sm font-bold transition-all border-t border-x relative top-[1px] ${
-              activeTab === idx
-                ? 'bg-[#1e1e1e] border-[#1e1e1e] text-white'
-                : 'bg-gray-100 dark:bg-dark-surface border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            onClick={() => setActive(idx)}
+            className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap ${
+              active === idx 
+                ? 'text-primary-400 border-primary-500 bg-primary-500/5' 
+                : 'text-gray-500 border-transparent hover:text-gray-300'
             }`}
           >
-            {item.language ? item.language.toUpperCase() : 'CODE'}
+            {s.label}
           </button>
         ))}
       </div>
-      <div className="rounded-b-xl rounded-tr-xl bg-[#1e1e1e]">
-         <CodeRenderer language={items[activeTab].language} code={items[activeTab].code} />
+      <div className="relative">
+        <SyntaxHighlighter 
+          language={snippets[active].language} 
+          style={vscDarkPlus} 
+          customStyle={{ margin: 0, padding: '2rem', background: 'transparent', fontSize: '0.9rem', lineHeight: '1.7' }}
+        >
+          {snippets[active].content.trim()}
+        </SyntaxHighlighter>
+        <button 
+          onClick={() => {
+            navigator.clipboard.writeText(snippets[active].content);
+            alert('Copied to clipboard');
+          }}
+          className="absolute top-4 right-4 p-2 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all"
+        >
+          <span className="material-symbols-rounded text-sm">content_copy</span>
+        </button>
       </div>
     </div>
   );
 };
 
-const CarouselBlock: React.FC<{ images: string[] }> = ({ images }) => {
+interface CarouselItem {
+  url: string;
+  caption: string;
+}
+
+const CarouselBlock: React.FC<{ items: CarouselItem[] }> = ({ items }) => {
   const [current, setCurrent] = useState(0);
 
-  if (!images || images.length === 0) return null;
+  if (!items || items.length === 0) return null;
 
   return (
-    <div className="my-8 w-full">
-      <div className="relative group rounded-xl overflow-hidden shadow-lg bg-gray-100 dark:bg-gray-800 aspect-video border border-gray-200 dark:border-gray-700">
+    <div className="my-10 w-full animate-fade-in">
+      <div className="relative group rounded-3xl overflow-hidden shadow-2xl bg-gray-50 dark:bg-dark-surface/30 aspect-video border border-gray-200 dark:border-dark-border">
         <div 
-          className="w-full h-full bg-contain bg-center bg-no-repeat transition-all duration-500"
-          style={{ backgroundImage: `url('${images[current]}')` }}
+          className="w-full h-full bg-center bg-cover transition-all duration-700 ease-out"
+          style={{ backgroundImage: `url('${items[current].url}')` }}
         />
         
-        {images.length > 1 && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+        {items.length > 1 && (
           <>
             <button 
-              onClick={() => setCurrent(c => (c === 0 ? images.length - 1 : c - 1))}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/30 backdrop-blur-md rounded-full text-white transition-all z-10"
+              onClick={() => setCurrent(c => (c === 0 ? items.length - 1 : c - 1))}
+              className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center bg-white/10 hover:bg-white/30 backdrop-blur-xl rounded-full text-white transition-all z-10 opacity-0 group-hover:opacity-100 border border-white/20 hover:scale-110 active:scale-95"
             >
-              <span className="material-symbols-rounded">chevron_left</span>
+              <span className="material-symbols-rounded text-3xl">chevron_left</span>
             </button>
             <button 
-              onClick={() => setCurrent(c => (c === images.length - 1 ? 0 : c + 1))}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/30 backdrop-blur-md rounded-full text-white transition-all z-10"
+              onClick={() => setCurrent(c => (c === items.length - 1 ? 0 : c + 1))}
+              className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center bg-white/10 hover:bg-white/30 backdrop-blur-xl rounded-full text-white transition-all z-10 opacity-0 group-hover:opacity-100 border border-white/20 hover:scale-110 active:scale-95"
             >
-              <span className="material-symbols-rounded">chevron_right</span>
+              <span className="material-symbols-rounded text-3xl">chevron_right</span>
             </button>
-            
-            {/* Image Counter Badge */}
-            <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-mono font-medium border border-white/10 select-none">
-              {current + 1} / {images.length}
-            </div>
-
-            {/* Dots Indicator */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-              {images.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrent(idx)}
-                  className={`w-2 h-2 rounded-full transition-all shadow-sm ${idx === current ? 'bg-white w-6' : 'bg-white/50 hover:bg-white/80'}`}
-                />
-              ))}
-            </div>
           </>
         )}
+
+        <div className="absolute bottom-0 inset-x-0 p-8 text-white translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+          <div className="flex items-end justify-between gap-4">
+             <div className="flex-1">
+                <p className="text-lg font-bold drop-shadow-lg">{items[current].caption || 'Module step visualization'}</p>
+             </div>
+             <div className="bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10 whitespace-nowrap">
+               {current + 1} / {items.length}
+             </div>
+          </div>
+        </div>
       </div>
+      
+      {items.length > 1 && (
+        <div className="flex justify-center gap-3 mt-6">
+          {items.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrent(idx)}
+              className={`h-1.5 rounded-full transition-all duration-500 ${idx === current ? 'bg-primary-600 w-12' : 'bg-gray-200 dark:bg-gray-700 w-3 hover:bg-gray-300'}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -202,7 +198,7 @@ export const RichContent: React.FC<RichContentProps> = ({ htmlContent }) => {
   useEffect(() => {
     if (!htmlContent) return;
 
-    const processedHtml = unescapeCustomTags(htmlContent);
+    const processedHtml = prepareHtmlForParsing(htmlContent);
     const parser = new DOMParser();
     const doc = parser.parseFromString(processedHtml, 'text/html');
     
@@ -212,11 +208,12 @@ export const RichContent: React.FC<RichContentProps> = ({ htmlContent }) => {
       }
 
       if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element;
+        const element = node as HTMLElement;
         const tagName = element.tagName.toLowerCase();
         
-        // Handling Custom Components
-        if (tagName === 'custom-note') {
+        // --- Special Block Rendering ---
+
+        if (tagName === 'note') {
           return (
             <NoteBlock key={index} type={element.getAttribute('type') || 'info'}>
               {Array.from(element.childNodes).map((child, i) => domToReact(child, i))}
@@ -224,90 +221,76 @@ export const RichContent: React.FC<RichContentProps> = ({ htmlContent }) => {
           );
         }
 
-        if (tagName === 'custom-code') {
+        if (tagName === 'code') {
           return (
-            <CodeBlock 
+            <CodeRenderer 
               key={index} 
-              language={element.getAttribute('language') || 'text'} 
+              language={element.getAttribute('language') || 'javascript'} 
               code={element.textContent || ''} 
             />
           );
         }
 
-        if (tagName === 'custom-code-collection') {
-          const codeItems: CodeTabItem[] = [];
-          const children = element.getElementsByTagName('custom-code');
-          for(let i=0; i<children.length; i++) {
-             const child = children[i];
-             codeItems.push({
-               language: child.getAttribute('language') || 'text',
-               code: child.textContent || ''
-             });
-          }
-          return <CodeTabs key={index} items={codeItems} />;
+        if (tagName === 'multicode') {
+          const snippets = Array.from(element.querySelectorAll('snippet')).map(s => ({
+            label: s.getAttribute('label') || 'Snippet',
+            language: s.getAttribute('language') || 'javascript',
+            content: s.textContent || ''
+          }));
+          return <MultiCodeRenderer key={index} snippets={snippets} />;
         }
 
-        if (tagName === 'custom-image') {
+        if (tagName === 'carousel') {
+          const items: CarouselItem[] = Array.from(element.querySelectorAll('img')).map(img => ({
+            url: img.getAttribute('src') || '',
+            caption: img.getAttribute('alt') || ''
+          }));
+          return <CarouselBlock key={index} items={items} />;
+        }
+
+        if (tagName === 'img' && !element.closest('carousel')) {
           return (
-            <img 
-              key={index}
-              src={element.getAttribute('src') || ''} 
-              alt="Content illustration"
-              className="rounded-lg shadow-md max-w-full h-auto my-8 mx-auto border border-gray-100 dark:border-gray-700"
-              loading="lazy"
-            />
+            <div key={index} className="my-10 group relative">
+              <img 
+                src={element.getAttribute('src') || ''} 
+                alt={element.getAttribute('alt') || 'Topic illustration'}
+                className="rounded-3xl shadow-xl max-w-full h-auto mx-auto border border-gray-100 dark:border-dark-border group-hover:scale-[1.01] transition-transform duration-500"
+                loading="lazy"
+              />
+              {element.getAttribute('alt') && (
+                <p className="text-center text-xs text-gray-400 mt-4 italic font-medium">
+                  {element.getAttribute('alt')}
+                </p>
+              )}
+            </div>
           );
         }
 
-        if (tagName === 'custom-carousel') {
-          const images: string[] = [];
-          const imgTags = element.getElementsByTagName('custom-image');
-          for (let i = 0; i < imgTags.length; i++) {
-            const src = imgTags[i].getAttribute('src');
-            if (src) images.push(src);
-          }
-          return <CarouselBlock key={index} images={images} />;
-        }
-
-        // Standard HTML Elements mapping
+        // --- Standard Typography Mapping ---
         const props: any = { key: index };
-        Array.from(element.attributes).forEach(attr => {
-          if (attr.name === 'class') props.className = attr.value;
-          else if (attr.name === 'style') { /* skip style */ }
-          else props[attr.name] = attr.value;
-        });
+        
+        if (tagName === 'h1') props.className = 'text-4xl md:text-5xl font-black mb-6 mt-12 font-display text-gray-900 dark:text-white tracking-tight';
+        if (tagName === 'h2') props.className = 'text-3xl font-bold mb-4 mt-10 font-display text-gray-900 dark:text-white tracking-tight';
+        if (tagName === 'h3') props.className = 'text-xl font-bold mb-3 mt-8 font-display text-gray-800 dark:text-gray-100';
+        if (tagName === 'p') props.className = 'text-lg leading-relaxed text-gray-700 dark:text-gray-300 mb-6';
+        if (tagName === 'ul') props.className = 'list-disc list-outside mb-8 space-y-3 pl-6 text-gray-700 dark:text-gray-300';
+        if (tagName === 'ol') props.className = 'list-decimal list-outside mb-8 space-y-3 pl-6 text-gray-700 dark:text-gray-300';
+        if (tagName === 'li') props.className = 'pl-2';
+        if (tagName === 'strong' || tagName === 'b') props.className = 'font-bold text-gray-900 dark:text-white';
+        if (tagName === 'em' || tagName === 'i') props.className = 'italic';
 
         // Void elements
-        const voidElements = [
-          'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 
-          'link', 'meta', 'param', 'source', 'track', 'wbr'
-        ];
-
+        const voidElements = ['br', 'hr', 'img', 'input', 'link', 'meta'];
         if (voidElements.includes(tagName)) {
            return React.createElement(tagName, props);
         }
 
         const children = Array.from(element.childNodes).map((child, i) => domToReact(child, i));
-
-        if (tagName === 'p' && children.length === 0) return null;
         
-        // Unwrap logic: If P contains blocks, convert P to DIV
-        if (tagName === 'p') {
-           const hasBlockChild = children.some(c => 
-             React.isValidElement(c) && 
-             (c.type === NoteBlock || c.type === CodeBlock || c.type === CodeTabs || c.type === CarouselBlock)
-           );
-           if (hasBlockChild) return <div key={index} className="my-4">{children}</div>;
-           
-           // Apply typography classes
-           props.className = (props.className || '') + ' mb-6 leading-7 text-gray-700 dark:text-gray-300';
+        // Remove empty paragraphs
+        if (tagName === 'p' && (children.length === 0 || (children.length === 1 && !children[0]))) {
+          return null;
         }
-        
-        if (tagName === 'h1') props.className = (props.className || '') + ' text-3xl font-bold mb-4 mt-8 font-display text-gray-900 dark:text-white';
-        if (tagName === 'h2') props.className = (props.className || '') + ' text-2xl font-bold mb-3 mt-6 font-display text-gray-900 dark:text-white';
-        if (tagName === 'h3') props.className = (props.className || '') + ' text-xl font-bold mb-2 mt-5 font-display text-gray-900 dark:text-white';
-        if (tagName === 'ul') props.className = (props.className || '') + ' list-disc list-inside mb-6 space-y-2';
-        if (tagName === 'ol') props.className = (props.className || '') + ' list-decimal list-inside mb-6 space-y-2';
 
         return React.createElement(tagName, props, children);
       }
@@ -319,5 +302,5 @@ export const RichContent: React.FC<RichContentProps> = ({ htmlContent }) => {
 
   }, [htmlContent]);
 
-  return <div className="rich-content w-full max-w-none">{nodes}</div>;
+  return <div className="rich-content w-full max-w-4xl mx-auto">{nodes}</div>;
 };

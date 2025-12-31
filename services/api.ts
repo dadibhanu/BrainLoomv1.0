@@ -28,7 +28,9 @@ export const login = async (email: string, password: string): Promise<AuthRespon
 };
 
 export const fetchRootTopics = async (): Promise<TopicListResponse> => {
-  const response = await fetch(`${API_BASE_URL}/topics/root`);
+  const response = await fetch(`${API_BASE_URL}/topics/root`, {
+    cache: 'no-store'
+  });
   if (!response.ok) {
     throw new Error('Failed to fetch topics');
   }
@@ -36,11 +38,20 @@ export const fetchRootTopics = async (): Promise<TopicListResponse> => {
 };
 
 export const fetchTopicBySlug = async (slugPath: string): Promise<TopicDetailResponse> => {
+  // Ensure we handle hierarchical slugs correctly by encoding the path
+  // This treats 'parent/child' as a single slug parameter 'parent%2Fchild'
   const cleanPath = slugPath.endsWith('/') ? slugPath.slice(0, -1) : slugPath;
-  const response = await fetch(`${API_BASE_URL}/topics/slug/${cleanPath}/`);
+  const encodedPath = encodeURIComponent(cleanPath);
+  
+  const response = await fetch(`${API_BASE_URL}/topics/slug/${encodedPath}`, {
+    cache: 'no-store'
+  });
   
   if (!response.ok) {
-    throw new Error('Failed to fetch topic details');
+    // Attempt to parse error message from body if available
+    const errorBody = await response.text().catch(() => null);
+    console.error('Fetch topic error:', response.status, errorBody);
+    throw new Error(`Failed to fetch topic details (${response.status})`);
   }
   return response.json();
 };
@@ -101,7 +112,7 @@ export const reorderTopics = async (parentId: number | 'root', items: { id: numb
   }
 };
 
-export const saveTopicContent = async (topicId: number, content: string): Promise<void> => {
+export const saveTopicContent = async (topicId: number, content: string, blockId?: number): Promise<void> => {
   // Construct the payload structure expected by the API
   const payload = {
     topic_id: topicId,
@@ -122,8 +133,13 @@ export const saveTopicContent = async (topicId: number, content: string): Promis
     ]
   };
 
-  const response = await fetch(`${API_BASE_URL}/topics/${topicId}/content`, {
-    method: 'POST',
+  // If blockId is provided, we update that specific block. Otherwise we create content for the topic.
+  const url = blockId 
+    ? `${API_BASE_URL}/content-blocks/${blockId}` 
+    : `${API_BASE_URL}/topics/${topicId}/content`;
+
+  const response = await fetch(url, {
+    method: blockId ? 'PUT' : 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
@@ -131,4 +147,26 @@ export const saveTopicContent = async (topicId: number, content: string): Promis
   if (!response.ok) {
     throw new Error('Failed to save content');
   }
+};
+
+export const uploadMedia = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/upload/server`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Upload failed');
+  }
+
+  const data = await response.json();
+  // Attempt to resolve the URL from various common response patterns
+  return data.url || data.link || data.secure_url || data.file?.url || '';
 };
