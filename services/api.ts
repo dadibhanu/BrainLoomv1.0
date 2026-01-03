@@ -1,3 +1,4 @@
+
 import { AuthResponse, TopicListResponse, TopicDetailResponse, Topic } from '../types';
 
 const API_BASE_URL = 'https://api.brainloom.space/api';
@@ -38,8 +39,6 @@ export const fetchRootTopics = async (): Promise<TopicListResponse> => {
 };
 
 export const fetchTopicBySlug = async (slugPath: string): Promise<TopicDetailResponse> => {
-  // Ensure we handle hierarchical slugs correctly by encoding the path
-  // This treats 'parent/child' as a single slug parameter 'parent%2Fchild'
   const cleanPath = slugPath.endsWith('/') ? slugPath.slice(0, -1) : slugPath;
   const encodedPath = encodeURIComponent(cleanPath);
   
@@ -48,15 +47,10 @@ export const fetchTopicBySlug = async (slugPath: string): Promise<TopicDetailRes
   });
   
   if (!response.ok) {
-    // Attempt to parse error message from body if available
-    const errorBody = await response.text().catch(() => null);
-    console.error('Fetch topic error:', response.status, errorBody);
     throw new Error(`Failed to fetch topic details (${response.status})`);
   }
   return response.json();
 };
-
-// --- Admin Functions ---
 
 export const createTopic = async (data: { 
   title: string; 
@@ -67,8 +61,8 @@ export const createTopic = async (data: {
 }): Promise<Topic> => {
   const payload = {
     ...data,
-    parentId: data.parent_id, // Map for API consistency if backend expects camelCase for root
-    order: data.order_no // Map for API consistency
+    parentId: data.parent_id,
+    order: data.order_no
   };
   
   const response = await fetch(`${API_BASE_URL}/topics/add`, {
@@ -95,25 +89,7 @@ export const deleteTopic = async (id: number): Promise<void> => {
   }
 };
 
-export const reorderTopics = async (parentId: number | 'root', items: { id: number; order_no: number }[]): Promise<void> => {
-  const endpoint = parentId === 'root' 
-    ? `${API_BASE_URL}/topics/root/reorder` // Assuming root reorder endpoint follows pattern
-    : `${API_BASE_URL}/topics/${parentId}/reorder`;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(items),
-  });
-
-  if (!response.ok) {
-    // Fallback: If strict root reorder endpoint doesn't exist, we might need a specific one.
-    throw new Error('Failed to save order');
-  }
-};
-
 export const saveTopicContent = async (topicId: number, content: string, blockId?: number): Promise<void> => {
-  // Construct the payload structure expected by the API
   const payload = {
     topic_id: topicId,
     block_type: "page",
@@ -133,7 +109,7 @@ export const saveTopicContent = async (topicId: number, content: string, blockId
     ]
   };
 
-  // If blockId is provided, we update that specific block. Otherwise we create content for the topic.
+  // Correct Method Selection: POST to create, PUT to update
   const url = blockId 
     ? `${API_BASE_URL}/content-blocks/${blockId}` 
     : `${API_BASE_URL}/topics/${topicId}/content`;
@@ -167,6 +143,6 @@ export const uploadMedia = async (file: File): Promise<string> => {
   }
 
   const data = await response.json();
-  // Attempt to resolve the URL from various common response patterns
-  return data.url || data.link || data.secure_url || data.file?.url || '';
+  // Return the S3 URL from the successful response
+  return data.files?.[0]?.url || '';
 };
