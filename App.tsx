@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, Link, useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { GoogleGenAI } from "@google/genai";
@@ -60,7 +59,8 @@ const htmlToBlocks = (html: string): EditorBlock[] => {
     }
   };
   Array.from(doc.body.childNodes).forEach(processNode);
-  return blocks.length > 0 ? blocks : [{ id: 'init', type: 'text', content: html }];
+  // Added type assertion to ensure the literal 'text' is treated as BlockType
+  return blocks.length > 0 ? blocks : [{ id: 'init', type: 'text' as BlockType, content: html }];
 };
 
 const Breadcrumbs = ({ slugPath }: { slugPath: string }) => {
@@ -111,9 +111,10 @@ const TopicViewer = () => {
     setLoading(true);
     fetchTopicBySlug(slug).then(res => {
       setData(res);
-      const initialBlocks = res.blocks.length > 0 
+      // Explicitly type initialBlocks and cast literal type to resolve inference mismatch
+      const initialBlocks: EditorBlock[] = res.blocks.length > 0 
         ? htmlToBlocks(res.blocks[0].components[0]?.json.content || '') 
-        : [{ id: 'init', type: 'text', content: '' }];
+        : [{ id: 'init', type: 'text' as BlockType, content: '' }];
       setEditorBlocks(initialBlocks);
     }).finally(() => setLoading(false));
   };
@@ -143,7 +144,12 @@ const TopicViewer = () => {
       const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt, config: { responseMimeType: "application/json" } });
       const result = JSON.parse(response.text || '{}');
       const id = () => Math.random().toString(36).substr(2, 9);
-      setEditorBlocks(prev => [...prev, { id: id(), type: 'heading', content: result.heading }, { id: id(), type: 'text', content: result.content }]);
+      // Added type assertions for literal types in AI result to match BlockType
+      setEditorBlocks(prev => [
+        ...prev, 
+        { id: id(), type: 'heading' as BlockType, content: result.heading }, 
+        { id: id(), type: 'text' as BlockType, content: result.content }
+      ]);
     } catch (e) { alert('AI assist failed.'); } finally { setIsAiLoading(false); }
   };
 
