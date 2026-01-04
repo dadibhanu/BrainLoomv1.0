@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BrainLoom - Knowledge Hub</title>
+    <title>BrainLoom - High-End Knowledge Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -47,19 +47,23 @@
             },
             animation: {
               'fade-in': 'fadeIn 0.3s ease-in-out',
+              'float': 'float 6s ease-in-out infinite',
             },
             keyframes: {
               fadeIn: {
                 '0%': { opacity: '0', transform: 'translateY(10px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
               },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
+              }
             },
           },
         },
       };
     </script>
     <style>
-      /* Custom scrollbar for better aesthetics */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -81,7 +85,6 @@
         background-color: #64748b;
       }
       
-      /* Reset specific styles for rich text content */
       .rich-content h1 { @apply text-3xl font-bold mb-4 mt-6 text-gray-900 dark:text-white font-display; }
       .rich-content h2 { @apply text-2xl font-semibold mb-3 mt-5 text-gray-800 dark:text-gray-100 font-display; }
       .rich-content h3 { @apply text-xl font-semibold mb-2 mt-4 text-gray-800 dark:text-gray-100 font-display; }
@@ -91,22 +94,39 @@
       .rich-content a { @apply text-primary-600 hover:underline underline-offset-2; }
       .rich-content blockquote { @apply border-l-4 border-primary-500 pl-4 italic my-4 text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 py-2 rounded-r; }
       .rich-content img { @apply rounded-lg shadow-md max-w-full h-auto my-4; }
+
+      .glass {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .dark .glass {
+        background: rgba(15, 23, 42, 0.7);
+      }
+      
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@^16.1.0/",
-    "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@^16.1.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
-  }
-}
-</script>
-</head>
+    <script type="importmap">
+    {
+      "imports": {
+        "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react-syntax-highlighter/": "https://esm.sh/react-syntax-highlighter@^16.1.0/",
+        "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@^16.1.0"
+      }
+    }
+    </script>
+  </head>
   <body class="bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

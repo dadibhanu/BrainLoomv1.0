@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { EditorBlock, BlockType, CodeSnippet } from '../types';
 import { uploadMedia } from '../services/api';
@@ -10,7 +9,6 @@ export const Icons = {
   Image: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
   Code: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
   Note: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
-  Sparkles: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/></svg>,
   Trash: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
   Plus: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   Layers: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
@@ -19,9 +17,7 @@ export const Icons = {
 
 export const Toolbar: React.FC<{
   onAddBlock: (type: BlockType) => void;
-  onAiAssist: () => void;
-  isAiLoading: boolean;
-}> = ({ onAddBlock, onAiAssist, isAiLoading }) => {
+}> = ({ onAddBlock }) => {
   const tools: { type: BlockType; label: string; icon: React.ReactNode }[] = [
     { type: 'heading', label: 'Heading', icon: <div className="font-bold">H1</div> },
     { type: 'text', label: 'Text', icon: <div className="font-bold">P</div> },
@@ -45,12 +41,6 @@ export const Toolbar: React.FC<{
             <span className="text-[8px] font-bold uppercase tracking-widest text-gray-400 group-hover:text-primary-600">{tool.label}</span>
           </button>
         ))}
-        <div className="ml-1 pl-2 border-l border-gray-200 dark:border-white/10">
-          <button type="button" disabled={isAiLoading} onClick={onAiAssist} className={`px-4 py-2 bg-primary-600 text-white rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95 flex items-center gap-2 ${isAiLoading ? 'animate-pulse' : ''}`}>
-            <Icons.Sparkles />
-            <span className="text-[10px] font-black uppercase tracking-widest">{isAiLoading ? '...' : 'AI'}</span>
-          </button>
-        </div>
       </div>
     </div>
   );
