@@ -99,6 +99,7 @@ const TopicViewer = () => {
   const [isSubtopicModalOpen, setIsSubtopicModalOpen] = useState(false);
   const [editorBlocks, setEditorBlocks] = useState<EditorBlock[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const loadTopic = () => {
     if (!slug) return;
@@ -112,7 +113,7 @@ const TopicViewer = () => {
     }).finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadTopic(); }, [slug]);
+  useEffect(() => { loadTopic(); setIsMobileMenuOpen(false); }, [slug]);
 
   const handleSave = async () => {
     if (!data) return;
@@ -134,14 +135,18 @@ const TopicViewer = () => {
   const NavigationList = () => {
     const sorted = data.children?.sort((a,b) => a.order_no - b.order_no) || [];
     if (sorted.length === 0) return <div className="py-8 text-center text-[9px] font-black text-gray-300 uppercase tracking-widest italic">Topic sequence complete</div>;
-    return sorted.map((child, idx) => (
-      <Link key={child.id} to={`/topic/${slug}/${child.slug}`}
-        className="flex items-center gap-4 p-4 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-dark-surface hover:text-primary-600 transition-all border border-transparent hover:border-gray-100 dark:hover:border-dark-border group">
-        <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-bg flex items-center justify-center text-[10px] font-black group-hover:bg-primary-600 group-hover:text-white transition-all">{idx + 1}</span>
-        <span className="truncate flex-1">{child.title}</span>
-        <span className="material-symbols-rounded text-base opacity-0 group-hover:opacity-40">chevron_right</span>
-      </Link>
-    ));
+    return (
+      <div className="space-y-1">
+        {sorted.map((child, idx) => (
+          <Link key={child.id} to={`/topic/${slug}/${child.slug}`}
+            className="flex items-center gap-4 p-4 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-dark-surface hover:text-primary-600 transition-all border border-transparent hover:border-gray-100 dark:hover:border-dark-border group">
+            <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-bg flex items-center justify-center text-[10px] font-black group-hover:bg-primary-600 group-hover:text-white transition-all">{idx + 1}</span>
+            <span className="truncate flex-1">{child.title}</span>
+            <span className="material-symbols-rounded text-base opacity-0 group-hover:opacity-40">chevron_right</span>
+          </Link>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -150,7 +155,15 @@ const TopicViewer = () => {
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="flex-1">
             <Breadcrumbs slugPath={slug || ''} />
-            <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white font-display leading-tight tracking-tight">{data.topic.title}</h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white font-display leading-tight tracking-tight flex-1">{data.topic.title}</h1>
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="lg:hidden w-12 h-12 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary-600 transition-all border border-gray-100 dark:border-white/10 shadow-sm"
+              >
+                <span className="material-symbols-rounded text-2xl">menu_open</span>
+              </button>
+            </div>
           </div>
           {isAdmin && (
             <div className="flex flex-wrap gap-2">
@@ -173,7 +186,24 @@ const TopicViewer = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 pb-32">
-        <div className="flex flex-col lg:flex-row gap-16">
+        <div className="flex flex-col lg:flex-row gap-16 relative">
+          
+          {/* Mobile Sidebar Overlay */}
+          {isMobileMenuOpen && (
+            <div className="fixed inset-0 z-[150] lg:hidden">
+               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsMobileMenuOpen(false)} />
+               <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-dark-bg p-6 shadow-2xl animate-fade-in border-l border-gray-100 dark:border-white/5 overflow-y-auto">
+                 <div className="flex justify-between items-center mb-8 pb-6 border-b border-gray-100 dark:border-white/5">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Course Map</h3>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors">
+                      <span className="material-symbols-rounded text-lg">close</span>
+                    </button>
+                 </div>
+                 <NavigationList />
+               </div>
+            </div>
+          )}
+
           <div className="flex-1 min-w-0">
             {isEditMode ? (
               <div className="max-w-4xl mx-auto animate-fade-in bg-white dark:bg-dark-bg p-8 rounded-3xl shadow-sm border border-gray-50 dark:border-white/5 min-h-[600px]">
@@ -201,13 +231,34 @@ const TopicViewer = () => {
                 </div>
               </div>
             ) : (
-              <RichContent htmlContent={data.blocks[0]?.components[0]?.json.content || ''} />
+              <>
+                <RichContent htmlContent={data.blocks[0]?.components[0]?.json.content || ''} />
+                {/* Navigation Buttons */}
+                <div className="max-w-4xl mx-auto mt-20 pt-10 border-t border-gray-100 dark:border-white/5 flex flex-col sm:flex-row justify-between gap-4">
+                  <button 
+                    onClick={() => navigate(-1)} 
+                    className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-sm font-bold text-gray-600 dark:text-gray-300 group w-full sm:w-auto"
+                  >
+                    <span className="material-symbols-rounded group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                    Previous Context
+                  </button>
+                  {data.children && data.children.length > 0 && (
+                     <Link 
+                       to={`/topic/${slug}/${data.children.sort((a,b) => a.order_no - b.order_no)[0].slug}`}
+                       className="flex items-center justify-between sm:justify-center gap-3 px-8 py-4 rounded-2xl bg-primary-600 hover:bg-primary-700 text-white shadow-xl shadow-primary-600/20 hover:shadow-primary-600/30 transition-all text-sm font-black uppercase tracking-widest group w-full sm:w-auto"
+                     >
+                       <span>Start: {data.children.sort((a,b) => a.order_no - b.order_no)[0].title}</span>
+                       <span className="material-symbols-rounded group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                     </Link>
+                  )}
+                </div>
+              </>
             )}
           </div>
           <aside className="hidden lg:block w-72 sticky top-28 h-fit space-y-6">
             <div className="bg-gray-50/50 dark:bg-white/5 rounded-2xl p-6 border border-gray-100 dark:border-white/5 shadow-sm">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Topic Hierarchy</h3>
-              <nav className="space-y-1"><NavigationList /></nav>
+              <NavigationList />
               {isAdmin && (
                 <button onClick={() => setIsSubtopicModalOpen(true)} className="w-full mt-6 py-3 border border-dashed border-gray-300 dark:border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-primary-600 hover:border-primary-500/50 transition-all">
                   + Add Sub-Topic
