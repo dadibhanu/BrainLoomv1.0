@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { HashRouter, Routes, Route, Link, useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { GoogleGenAI } from "@google/genai";
 import { login, fetchRootTopics, fetchTopicBySlug, deleteTopic, saveTopicContent, createTopic } from './services/api';
 import { RichContent } from './components/RichContent';
 import { Topic, User, TopicDetailResponse, EditorBlock, BlockType } from './types';
@@ -7,12 +8,26 @@ import {
   Toolbar, BlockActions, TextBlock, CodeBlock, MultiCodeBlock, NoteBlock, ImageBlock, CarouselBlock 
 } from './components/EditorElements';
 
+// --- Contexts ---
 interface ThemeContextType { isDark: boolean; toggleTheme: () => void; }
 const ThemeContext = createContext<ThemeContextType>({ isDark: false, toggleTheme: () => {} });
 
-interface AuthContextType { user: User | null; token: string | null; loginUser: (email: string, pass: string) => Promise<void>; logout: () => void; isAdmin: boolean; }
-const AuthContext = createContext<AuthContextType>({ user: null, token: null, loginUser: async () => {}, logout: () => {}, isAdmin: false });
+interface AuthContextType { 
+  user: User | null; 
+  token: string | null; 
+  loginUser: (email: string, pass: string) => Promise<void>; 
+  logout: () => void; 
+  isAdmin: boolean; 
+}
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  token: null, 
+  loginUser: async () => {}, 
+  logout: () => {}, 
+  isAdmin: false 
+});
 
+// --- Helpers ---
 const blocksToHtml = (blocks: EditorBlock[]): string => {
   return blocks.map(block => {
     switch (block.type) {
@@ -59,6 +74,8 @@ const htmlToBlocks = (html: string): EditorBlock[] => {
   return blocks.length > 0 ? blocks : [{ id: 'init', type: 'text' as BlockType, content: html }];
 };
 
+// --- Components ---
+
 const Breadcrumbs = ({ slugPath }: { slugPath: string }) => {
   const segments = slugPath.split('/').filter(Boolean);
   let currentPath = '/topic';
@@ -71,7 +88,6 @@ const Breadcrumbs = ({ slugPath }: { slugPath: string }) => {
         currentPath += `/${segment}`;
         const isLast = idx === segments.length - 1;
         const label = segment.replace(/-/g, ' ');
-        
         return (
           <React.Fragment key={currentPath}>
             {isLast ? (
@@ -157,10 +173,7 @@ const TopicViewer = () => {
             <Breadcrumbs slugPath={slug || ''} />
             <div className="flex items-center gap-4">
               <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white font-display leading-tight tracking-tight flex-1">{data.topic.title}</h1>
-              <button 
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="lg:hidden w-12 h-12 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary-600 transition-all border border-gray-100 dark:border-white/10 shadow-sm"
-              >
+              <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden w-12 h-12 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary-600 transition-all border border-gray-100 dark:border-white/10 shadow-sm">
                 <span className="material-symbols-rounded text-2xl">menu_open</span>
               </button>
             </div>
@@ -187,12 +200,10 @@ const TopicViewer = () => {
 
       <div className="max-w-7xl mx-auto px-4 pb-32">
         <div className="flex flex-col lg:flex-row gap-16 relative">
-          
-          {/* Mobile Sidebar Overlay */}
           {isMobileMenuOpen && (
             <div className="fixed inset-0 z-[150] lg:hidden">
                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsMobileMenuOpen(false)} />
-               <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-dark-bg p-6 shadow-2xl animate-fade-in border-l border-gray-100 dark:border-white/5 overflow-y-auto">
+               <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-dark-bg p-6 shadow-2xl border-l border-gray-100 dark:border-white/5 overflow-y-auto">
                  <div className="flex justify-between items-center mb-8 pb-6 border-b border-gray-100 dark:border-white/5">
                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Course Map</h3>
                     <button onClick={() => setIsMobileMenuOpen(false)} className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors">
@@ -233,20 +244,13 @@ const TopicViewer = () => {
             ) : (
               <>
                 <RichContent htmlContent={data.blocks[0]?.components[0]?.json.content || ''} />
-                {/* Navigation Buttons */}
                 <div className="max-w-4xl mx-auto mt-20 pt-10 border-t border-gray-100 dark:border-white/5 flex flex-col sm:flex-row justify-between gap-4">
-                  <button 
-                    onClick={() => navigate(-1)} 
-                    className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-sm font-bold text-gray-600 dark:text-gray-300 group w-full sm:w-auto"
-                  >
+                  <button onClick={() => navigate(-1)} className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-sm font-bold text-gray-600 dark:text-gray-300 group w-full sm:w-auto">
                     <span className="material-symbols-rounded group-hover:-translate-x-1 transition-transform">arrow_back</span>
                     Previous Context
                   </button>
                   {data.children && data.children.length > 0 && (
-                     <Link 
-                       to={`/topic/${slug}/${data.children.sort((a,b) => a.order_no - b.order_no)[0].slug}`}
-                       className="flex items-center justify-between sm:justify-center gap-3 px-8 py-4 rounded-2xl bg-primary-600 hover:bg-primary-700 text-white shadow-xl shadow-primary-600/20 hover:shadow-primary-600/30 transition-all text-sm font-black uppercase tracking-widest group w-full sm:w-auto"
-                     >
+                     <Link to={`/topic/${slug}/${data.children.sort((a,b) => a.order_no - b.order_no)[0].slug}`} className="flex items-center justify-between sm:justify-center gap-3 px-8 py-4 rounded-2xl bg-primary-600 hover:bg-primary-700 text-white shadow-xl shadow-primary-600/20 hover:shadow-primary-600/30 transition-all text-sm font-black uppercase tracking-widest group w-full sm:w-auto">
                        <span>Start: {data.children.sort((a,b) => a.order_no - b.order_no)[0].title}</span>
                        <span className="material-symbols-rounded group-hover:translate-x-1 transition-transform">arrow_forward</span>
                      </Link>
@@ -269,13 +273,7 @@ const TopicViewer = () => {
         </div>
       </div>
       <Footer />
-      <CreateTopicModal 
-        isOpen={isSubtopicModalOpen} 
-        onClose={() => setIsSubtopicModalOpen(false)} 
-        onSuccess={loadTopic} 
-        parentId={data.topic.id}
-        parentTitle={data.topic.title}
-      />
+      <CreateTopicModal isOpen={isSubtopicModalOpen} onClose={() => setIsSubtopicModalOpen(false)} onSuccess={loadTopic} parentId={data.topic.id} parentTitle={data.topic.title} />
     </div>
   );
 };
@@ -285,65 +283,30 @@ const CreateTopicModal = ({ isOpen, onClose, onSuccess, parentId = null, parentT
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
-
   useEffect(() => {
-    if (title) {
-      setSlug(title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
-    }
+    if (title) setSlug(title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
   }, [title]);
-
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault(); setLoading(true);
     try {
-      await createTopic({
-        title,
-        slug,
-        description: description || '',
-        parent_id: parentId,
-        order_no: 0
-      });
-      onSuccess();
-      onClose();
-      setTitle(''); setSlug(''); setDescription('');
-    } catch (err) {
-      alert('Failed to create topic');
-    } finally {
-      setLoading(false);
-    }
+      await createTopic({ title, slug, description: description || '', parent_id: parentId, order_no: 0 });
+      onSuccess(); onClose(); setTitle(''); setSlug(''); setDescription('');
+    } catch (err) { alert('Failed to create topic'); } finally { setLoading(false); }
   };
-
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white dark:bg-dark-surface rounded-3xl shadow-2xl p-10 border border-gray-100 dark:border-white/10 animate-fade-in">
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-2xl font-black font-display tracking-tight">{parentId ? 'Add Subtopic' : 'New Track'}</h2>
-            {parentTitle && <p className="text-[10px] font-black uppercase tracking-widest text-primary-500 mt-1">Under: {parentTitle}</p>}
-          </div>
-          <button onClick={onClose} className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors">
-            <span className="material-symbols-rounded">close</span>
-          </button>
+          <div><h2 className="text-2xl font-black font-display tracking-tight">{parentId ? 'Add Subtopic' : 'New Track'}</h2>{parentTitle && <p className="text-[10px] font-black uppercase tracking-widest text-primary-500 mt-1">Under: {parentTitle}</p>}</div>
+          <button onClick={onClose} className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"><span className="material-symbols-rounded">close</span></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Title</label>
-            <input className="w-full h-12 px-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all font-bold" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Topic Title..." />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Slug (URL Path)</label>
-            <input className="w-full h-12 px-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all text-xs font-mono" required value={slug} onChange={e => setSlug(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Description</label>
-            <textarea className="w-full h-24 p-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm resize-none" value={description} onChange={e => setDescription(e.target.value)} placeholder="What will they learn?" />
-          </div>
-          <button type="submit" disabled={loading} className="w-full h-14 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-xl shadow-primary-500/20 transition-all active:scale-95 disabled:opacity-50 mt-4">
-            {loading ? '...' : 'Create Topic'}
-          </button>
+          <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Title</label><input className="w-full h-12 px-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all font-bold" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Topic Title..." /></div>
+          <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Slug (URL Path)</label><input className="w-full h-12 px-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all text-xs font-mono" required value={slug} onChange={e => setSlug(e.target.value)} /></div>
+          <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Description</label><textarea className="w-full h-24 p-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm resize-none" value={description} onChange={e => setDescription(e.target.value)} placeholder="What will they learn?" /></div>
+          <button type="submit" disabled={loading} className="w-full h-14 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-xl shadow-primary-500/20 transition-all active:scale-95 disabled:opacity-50 mt-4">{loading ? '...' : 'Create Topic'}</button>
         </form>
       </div>
     </div>
@@ -358,51 +321,13 @@ const Footer = () => (
           <div className="w-12 h-12 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-xl shadow-primary-600/20"><span className="material-symbols-rounded text-3xl">school</span></div>
           BrainLoom
         </Link>
-        <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-10 max-w-xs font-medium">
-          The hub for professional engineering excellence. We craft deep technical tracks that bridge the gap between basics and mastery.
-        </p>
-        <div className="flex gap-4">
-          {['facebook', 'twitter', 'linkedin', 'github'].map(i => (
-            <div key={i} className="w-10 h-10 rounded-xl border border-gray-100 dark:border-white/10 flex items-center justify-center hover:bg-primary-600 hover:text-white dark:text-gray-400 hover:border-primary-600 transition-all cursor-pointer">
-              <span className="material-symbols-rounded text-lg">public</span>
-            </div>
-          ))}
-        </div>
+        <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-10 max-w-xs font-medium">The hub for professional engineering excellence. We craft deep technical tracks that bridge the gap between basics and mastery.</p>
       </div>
-      <div className="space-y-8">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Mastery Tracks</h4>
-        <ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300">
-          <li><Link to="/explore" className="hover:text-primary-600 transition-colors">Explore All</Link></li>
-          <li><a href="#" className="hover:text-primary-600 transition-colors">System Design</a></li>
-          <li><a href="#" className="hover:text-primary-600 transition-colors">Cloud Architecture</a></li>
-          <li><a href="#" className="hover:text-primary-600 transition-colors">DevOps Excellence</a></li>
-        </ul>
-      </div>
-      <div className="space-y-8">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Our Company</h4>
-        <ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300">
-          <li><Link to="/" className="hover:text-primary-600 transition-colors">About BrainLoom</Link></li>
-          <li><a href="#" className="hover:text-primary-600 transition-colors">Expert Mentors</a></li>
-          <li><a href="#" className="hover:text-primary-600 transition-colors">Product Roadmap</a></li>
-          <li><a href="#" className="hover:text-primary-600 transition-colors">Contact Hub</a></li>
-        </ul>
-      </div>
-      <div className="bg-gradient-to-br from-primary-600 to-indigo-700 rounded-[32px] p-10 text-white relative overflow-hidden group shadow-2xl shadow-primary-600/20">
-        <div className="relative z-10">
-          <h4 className="text-2xl font-black mb-4 font-display">Elite Access</h4>
-          <p className="text-white/80 text-sm mb-8 font-medium leading-relaxed">Unlock the full platform with a premium corporate license or individual plan.</p>
-          <button className="w-full py-4 bg-white text-primary-700 font-black uppercase tracking-[0.15em] text-[10px] rounded-2xl shadow-xl hover:scale-105 transition-all active:scale-95">Upgrade Experience</button>
-        </div>
-        <span className="material-symbols-rounded absolute -right-10 -bottom-10 text-white/10 text-[200px] group-hover:scale-110 group-hover:-rotate-12 transition-transform duration-1000 select-none">verified_user</span>
-      </div>
+      <div className="space-y-8"><h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Mastery Tracks</h4><ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300"><li><Link to="/explore" className="hover:text-primary-600 transition-colors">Explore All</Link></li></ul></div>
+      <div className="space-y-8"><h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Our Company</h4><ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300"><li><Link to="/" className="hover:text-primary-600 transition-colors">About BrainLoom</Link></li></ul></div>
+      <div className="bg-gradient-to-br from-primary-600 to-indigo-700 rounded-[32px] p-10 text-white relative overflow-hidden group shadow-2xl shadow-primary-600/20"><div className="relative z-10"><h4 className="text-2xl font-black mb-4 font-display">Elite Access</h4><p className="text-white/80 text-sm mb-8 font-medium leading-relaxed">Unlock the full platform with a premium plan.</p><button className="w-full py-4 bg-white text-primary-700 font-black uppercase tracking-[0.15em] text-[10px] rounded-2xl shadow-xl hover:scale-105 transition-all">Upgrade Experience</button></div><span className="material-symbols-rounded absolute -right-10 -bottom-10 text-white/10 text-[200px] select-none">verified_user</span></div>
     </div>
-    <div className="max-w-[1920px] mx-auto px-6 pt-12 border-t border-gray-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
-      <p className="flex items-center gap-2">&copy; 2024 BrainLoom Space <span className="w-1 h-1 bg-gray-300 dark:bg-gray-700 rounded-full"></span> For Engineering Minds.</p>
-      <div className="flex gap-12">
-        <a href="#" className="hover:text-gray-900 dark:hover:text-white transition-colors">Privacy Ethics</a>
-        <a href="#" className="hover:text-gray-900 dark:hover:text-white transition-colors">Terms of Master</a>
-      </div>
-    </div>
+    <div className="max-w-[1920px] mx-auto px-6 pt-12 border-t border-gray-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-bold text-gray-400 uppercase tracking-widest"><p>&copy; 2024 BrainLoom Space For Engineering Minds.</p></div>
   </footer>
 );
 
@@ -410,310 +335,123 @@ const Home = () => {
   const { isAdmin } = useContext(AuthContext);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
-
-  const loadData = () => {
-    setLoading(true);
-    fetchRootTopics().then(res => setTopics(res.topics)).finally(() => setLoading(false));
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  const filteredTopics = useMemo(() => {
-    if (!searchQuery) return topics;
-    return topics.filter(t => 
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  }, [topics, searchQuery]);
-
+  useEffect(() => { setLoading(true); fetchRootTopics().then(res => setTopics(res.topics)).finally(() => setLoading(false)); }, []);
+  const filteredTopics = useMemo(() => topics.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase())), [topics, searchQuery]);
   return (
     <div className="animate-fade-in transition-colors duration-300">
-      <section className="relative pt-44 pb-48 px-6 overflow-hidden bg-white dark:bg-dark-bg transition-colors">
-        <div className="absolute top-[-10%] right-[5%] w-[500px] h-[500px] bg-primary-500/10 blur-[150px] rounded-full animate-float"></div>
-        <div className="absolute bottom-[5%] left-[0%] w-[400px] h-[400px] bg-indigo-500/10 blur-[120px] rounded-full animate-float" style={{ animationDelay: '3s' }}></div>
-        
-        <div className="max-w-6xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-primary-50 dark:bg-primary-900/10 text-primary-600 dark:text-primary-400 text-[10px] font-black uppercase tracking-[0.3em] mb-12 border border-primary-100 dark:border-primary-800 animate-fade-in">
-            <span className="material-symbols-rounded text-sm">rocket_launch</span> 
-            Pioneering The Future of Engineering Education
-          </div>
-          <h1 className="text-6xl md:text-8xl font-black text-gray-900 dark:text-white font-display tracking-tighter leading-[0.95] mb-12">
-            Elevate Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 via-indigo-500 to-primary-600 bg-[length:200%_auto] animate-gradient">Technical IQ</span>
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-500 dark:text-gray-400 font-medium mb-16 max-w-3xl mx-auto leading-relaxed">
-            The definitive platform for deep technical mastery. Structured paths, expert-led modules, and immersive code-first experiences.
-          </p>
-          
-          <div className="max-w-3xl mx-auto relative group scale-100 hover:scale-[1.02] transition-transform duration-500">
-            <div className="absolute -inset-2 bg-gradient-to-r from-primary-600 to-indigo-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-40 transition duration-700"></div>
-            <div className="relative flex items-center bg-white dark:bg-dark-surface p-3 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/5">
-              <span className="material-symbols-rounded ml-6 text-gray-400 text-3xl">search</span>
-              <input 
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="What skill do you want to master?"
-                className="flex-1 bg-transparent border-none outline-none px-6 py-6 font-bold text-xl dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600"
-              />
-              <button onClick={() => navigate('/explore')} className="hidden md:block px-10 py-5 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-[0.2em] text-xs rounded-2xl shadow-xl transition-all active:scale-95">Discover</button>
-            </div>
-          </div>
+      <section className="relative pt-44 pb-48 px-6 overflow-hidden bg-white dark:bg-dark-bg transition-colors text-center">
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-primary-50 dark:bg-primary-900/10 text-primary-600 dark:text-primary-400 text-[10px] font-black uppercase tracking-[0.3em] mb-12 border border-primary-100 dark:border-primary-800 animate-fade-in"><span className="material-symbols-rounded text-sm">rocket_launch</span> Pioneering The Future of Education</div>
+          <h1 className="text-6xl md:text-8xl font-black text-gray-900 dark:text-white font-display tracking-tighter leading-[0.95] mb-12">Elevate Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-indigo-600 animate-gradient">Technical IQ</span></h1>
+          <div className="max-w-3xl mx-auto relative group scale-100 hover:scale-[1.02] transition-transform duration-500"><div className="relative flex items-center bg-white dark:bg-dark-surface p-3 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/5"><span className="material-symbols-rounded ml-6 text-gray-400 text-3xl">search</span><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="What skill do you want to master?" className="flex-1 bg-transparent border-none outline-none px-6 py-6 font-bold text-xl dark:text-white" /><button onClick={() => navigate('/explore')} className="hidden md:block px-10 py-5 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-[0.2em] text-xs rounded-2xl shadow-xl transition-all">Discover</button></div></div>
         </div>
       </section>
-
-      <section className="py-24 px-6 bg-gray-50/50 dark:bg-white/[0.02] border-y border-gray-100 dark:border-white/5">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-12 md:gap-24">
-          {[
-            { icon: 'groups_2', count: '12,400+', label: 'Global Engineers' },
-            { icon: 'book_5', count: '840+', label: 'Technical Modules' },
-            { icon: 'verified_user', count: '100%', label: 'Expert Vetted' },
-            { icon: 'auto_graph', count: '150+', label: 'Learning Tracks' },
-          ].map((stat, i) => (
-            <div key={i} className="text-center group flex flex-col items-center">
-              <div className="w-16 h-16 bg-white dark:bg-dark-surface rounded-2xl flex items-center justify-center mb-6 shadow-xl border border-gray-50 dark:border-white/10 group-hover:bg-primary-600 transition-all duration-500">
-                <span className="material-symbols-rounded text-primary-600 group-hover:text-white text-3xl transition-colors">{stat.icon}</span>
-              </div>
-              <div className="text-4xl font-black text-gray-900 dark:text-white font-display mb-2 tracking-tighter">{stat.count}</div>
-              <div className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-400">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="max-w-[1920px] mx-auto px-6 py-32">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8 max-w-7xl mx-auto">
-          <div>
-            <div className="text-[10px] font-black text-primary-600 uppercase tracking-[0.3em] mb-4">Curated Excellence</div>
-            <h2 className="text-5xl font-black text-gray-900 dark:text-white font-display tracking-tighter">Premium Tracks</h2>
-          </div>
-          <div className="flex gap-4">
-            {isAdmin && (
-              <button onClick={() => setIsModalOpen(true)} className="px-8 py-4 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl shadow-primary-500/20 transition-all flex items-center gap-3">
-                <span className="material-symbols-rounded">add_circle</span>
-                New Track
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 max-w-7xl mx-auto">
-          {loading ? (
-            [1,2,3,4].map(i => <div key={i} className="h-80 bg-gray-100 dark:bg-white/5 rounded-[40px] animate-pulse" />)
-          ) : (
-            filteredTopics.slice(0, 4).map(t => (
-              <Link key={t.id} to={`/topic/${t.slug}`} className="bg-white dark:bg-dark-surface border border-gray-100 dark:border-white/5 rounded-[40px] overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] hover:-translate-y-4 transition-all duration-700 h-full flex flex-col group relative">
-                <div className="h-48 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-600/10 to-indigo-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="w-20 h-20 rounded-3xl bg-white dark:bg-dark-bg shadow-2xl flex items-center justify-center relative z-10 group-hover:scale-125 transition-all duration-700">
-                     <span className="material-symbols-rounded text-primary-600 text-4xl">auto_stories</span>
-                  </div>
-                </div>
-                <div className="p-10 flex-1 flex flex-col">
-                  <h3 className="text-2xl font-black mb-4 font-display tracking-tight text-gray-900 dark:text-white leading-tight">{t.title}</h3>
-                  <p className="text-gray-500 dark:text-gray-400 line-clamp-2 mb-10 leading-relaxed font-medium">{t.description || 'Master the essential concepts in this comprehensive learning track.'}</p>
-                  <div className="mt-auto flex items-center justify-between text-primary-600 text-[9px] font-black uppercase tracking-[0.3em] border-t border-gray-50 dark:border-white/5 pt-8 group-hover:text-primary-500 transition-all">
-                    Initiate Path <span className="material-symbols-rounded text-lg group-hover:translate-x-2 transition-transform">east</span>
-                  </div>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
-        <div className="mt-16 text-center">
-            <Link to="/explore" className="px-12 py-5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:bg-primary-600 hover:text-white transition-all shadow-xl active:scale-95">View All Learning Tracks</Link>
-        </div>
-      </section>
-
+      <section className="max-w-[1920px] mx-auto px-6 py-32"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 max-w-7xl mx-auto">{loading ? [1,2,3,4].map(i => <div key={i} className="h-80 bg-gray-100 dark:bg-white/5 rounded-[40px] animate-pulse" />) : filteredTopics.slice(0, 4).map(t => <Link key={t.id} to={`/topic/${t.slug}`} className="bg-white dark:bg-dark-surface border border-gray-100 dark:border-white/5 rounded-[40px] overflow-hidden hover:-translate-y-4 transition-all duration-700 h-full flex flex-col group p-10"><h3 className="text-2xl font-black mb-4 font-display text-gray-900 dark:text-white leading-tight">{t.title}</h3><p className="text-gray-500 dark:text-gray-400 line-clamp-2 mb-10 leading-relaxed font-medium">{t.description || 'Master the essential concepts.'}</p><div className="mt-auto flex items-center justify-between text-primary-600 text-[9px] font-black uppercase tracking-[0.3em] border-t border-gray-50 dark:border-white/5 pt-8 group-hover:text-primary-500 transition-all">Initiate Path <span className="material-symbols-rounded text-lg group-hover:translate-x-2 transition-transform">east</span></div></Link>)}</div></section>
       <Footer />
-      <CreateTopicModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={loadData} />
     </div>
   );
 };
 
 const ExplorePage = () => {
-    const [topics, setTopics] = useState<Topic[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { fetchRootTopics().then(res => setTopics(res.topics)).finally(() => setLoading(false)); }, []);
+  return (
+    <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-7xl mx-auto px-6"><h1 className="text-5xl font-black font-display tracking-tight mb-20 text-center">Knowledge Directory</h1><div className="grid grid-cols-1 md:grid-cols-3 gap-8">{loading ? [1,2,3].map(i => <div key={i} className="h-64 bg-gray-100 dark:bg-white/5 rounded-3xl animate-pulse" />) : topics.map(t => <Link key={t.id} to={`/topic/${t.slug}`} className="p-8 rounded-[32px] bg-gray-50/50 dark:bg-white/5 border border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-dark-surface hover:shadow-2xl transition-all group flex flex-col h-full"><h3 className="text-xl font-black mb-4 font-display">{t.title}</h3><p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 mb-8">{t.description}</p><div className="mt-auto text-primary-600 text-[9px] font-black uppercase tracking-widest flex items-center justify-between">Explore Track <span className="material-symbols-rounded text-base">arrow_forward</span></div></Link>)}</div></div><Footer /></div>
+  );
+};
 
-    useEffect(() => {
-        fetchRootTopics().then(res => setTopics(res.topics)).finally(() => setLoading(false));
-    }, []);
-
-    const filtered = topics.filter(t => t.title.toLowerCase().includes(search.toLowerCase()));
-
+const GoogleAdvanceSearchPage = () => {
+    const [query, setQuery] = useState('');
+    const [site, setSite] = useState('');
+    const [filetype, setFiletype] = useState('');
+    const [inurl, setInurl] = useState('');
+    const [intitle, setIntitle] = useState('');
+    const [exclude, setExclude] = useState('');
+    const [results, setResults] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const fullQuery = useMemo(() => {
+        let q = query.trim();
+        if (site) q += ` site:${site}`;
+        if (filetype) q += ` filetype:${filetype}`;
+        if (inurl) q += ` inurl:${inurl}`;
+        if (intitle) q += ` intitle:${intitle}`;
+        if (exclude) q += ` -${exclude}`;
+        return q.trim();
+    }, [query, site, filetype, inurl, intitle, exclude]);
+    const handleSearch = async () => {
+        if (!fullQuery) return; setLoading(true);
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const response = await ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: `Search for this information: ${fullQuery}. Provide a list of specific relevant links.`,
+                config: { tools: [{googleSearch: {}}] },
+            });
+            const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+            const searchResults = chunks.filter((c: any) => c.web).map((c: any) => ({
+                title: c.web.title || "Found Source",
+                uri: c.web.uri,
+                snippet: "Reference found in grounding metadata."
+            }));
+            setResults(searchResults);
+        } catch (err) { alert('Search failed.'); } finally { setLoading(false); }
+    };
     return (
-        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg">
-            <div className="max-w-7xl mx-auto px-6">
-                <div className="mb-20 text-center">
-                    <h1 className="text-5xl font-black font-display tracking-tight mb-6">Knowledge Directory</h1>
-                    <p className="text-gray-500 max-w-xl mx-auto mb-10">Choose from our curated collection of technical mastery tracks. Each path is designed for professional depth.</p>
-                    <div className="max-w-xl mx-auto relative">
-                        <span className="material-symbols-rounded absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">search</span>
-                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter by technology or concept..." className="w-full h-14 pl-12 pr-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-surface outline-none focus:ring-2 focus:ring-primary-500 transition-all font-bold" />
-                    </div>
-                </div>
-
-                {loading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {[1,2,3,4,5,6].map(i => <div key={i} className="h-64 bg-gray-100 dark:bg-white/5 rounded-3xl animate-pulse" />)}
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {filtered.map(t => (
-                            <Link key={t.id} to={`/topic/${t.slug}`} className="p-8 rounded-[32px] bg-gray-50/50 dark:bg-white/5 border border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-dark-surface hover:shadow-2xl transition-all group flex flex-col h-full">
-                                <div className="w-14 h-14 rounded-2xl bg-primary-600 text-white flex items-center justify-center mb-6 shadow-xl group-hover:scale-110 transition-transform">
-                                    <span className="material-symbols-rounded">auto_stories</span>
-                                </div>
-                                <h3 className="text-xl font-black mb-4 font-display">{t.title}</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 mb-8 leading-relaxed font-medium">{t.description || 'Master this subject with deep-dive modules.'}</p>
-                                <div className="mt-auto text-primary-600 text-[9px] font-black uppercase tracking-widest flex items-center justify-between">
-                                    Explore Track <span className="material-symbols-rounded text-base">arrow_forward</span>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                )}
+        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-5xl mx-auto px-6 text-center mb-16">
+            <h1 className="text-5xl font-black font-display tracking-tight mb-6">Google Advance</h1>
+            <p className="text-gray-500 max-w-xl mx-auto">Precision search engine with grounded intelligence.</p>
+        </div><div className="grid grid-cols-1 lg:grid-cols-3 gap-10 max-w-5xl mx-auto px-6">
+            <div className="space-y-4 p-6 rounded-3xl bg-gray-50 dark:bg-dark-surface border border-gray-100 dark:border-white/5 h-fit">
+                <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Query</label><input value={query} onChange={e => setQuery(e.target.value)} className="w-full h-10 px-3 rounded-lg dark:bg-dark-bg border-none outline-none font-bold text-sm" placeholder="Keywords" /></div>
+                <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Site</label><input value={site} onChange={e => setSite(e.target.value)} className="w-full h-10 px-3 rounded-lg dark:bg-dark-bg border-none outline-none font-bold text-sm" placeholder="e.g. stackoverflow.com" /></div>
+                <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Type</label><input value={filetype} onChange={e => setFiletype(e.target.value)} className="w-full h-10 px-3 rounded-lg dark:bg-dark-bg border-none outline-none font-bold text-sm" placeholder="e.g. pdf" /></div>
+                <button onClick={handleSearch} disabled={loading || !fullQuery} className="w-full h-12 bg-primary-600 text-white font-black uppercase text-xs rounded-lg shadow-xl disabled:opacity-50">{loading ? 'Searching...' : 'Search'}</button>
             </div>
-            <Footer />
-        </div>
+            <div className="lg:col-span-2 space-y-6 bg-white dark:bg-dark-surface p-8 rounded-[40px] border border-gray-100 dark:border-white/5 min-h-[400px]">
+                {results.map((res, i) => (
+                    <a key={i} href={res.uri} target="_blank" rel="noopener noreferrer" className="block p-5 rounded-2xl bg-gray-50/50 dark:bg-white/5 hover:border-primary-500/30 border border-transparent transition-all"><h4 className="font-bold text-primary-600 mb-1">{res.title}</h4><p className="text-[10px] text-gray-400 truncate mb-2">{res.uri}</p></a>
+                ))}
+                {!results.length && !loading && <div className="h-full flex items-center justify-center opacity-20 font-black uppercase text-xs">Ready for search</div>}
+            </div>
+        </div><Footer /></div>
     );
 };
 
-const ProductsPage = () => {
-    return (
-        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg">
-            <div className="max-w-7xl mx-auto px-6">
-                <div className="mb-20 text-center">
-                    <h1 className="text-5xl font-black font-display tracking-tight mb-6">Expert Ecosystem</h1>
-                    <p className="text-gray-500 max-w-xl mx-auto">Tools and services built to accelerate your career transition and technical growth.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
-                    <div className="p-12 rounded-[48px] bg-gradient-to-br from-primary-600 to-indigo-700 text-white relative overflow-hidden group shadow-2xl">
-                        <div className="relative z-10">
-                            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-xl flex items-center justify-center mb-10 border border-white/30">
-                                <span className="material-symbols-rounded text-3xl">quiz</span>
-                            </div>
-                            <h2 className="text-3xl font-black font-display mb-4 tracking-tight">Technical Quizzes</h2>
-                            <p className="text-white/80 mb-10 leading-relaxed font-medium">Test your knowledge with expert-vetted technical assessments across system design, algorithms, and full-stack development.</p>
-                            <button className="px-8 py-4 bg-white text-primary-700 font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-105 transition-all shadow-xl">Launch Assessments</button>
-                        </div>
-                        <span className="material-symbols-rounded absolute -right-16 -bottom-16 text-white/10 text-[250px] group-hover:rotate-12 transition-transform duration-1000">contract_edit</span>
-                    </div>
-
-                    <div className="p-12 rounded-[48px] bg-dark-surface border border-gray-100 dark:border-white/10 relative overflow-hidden group shadow-2xl">
-                        <div className="relative z-10">
-                            <div className="w-16 h-16 rounded-2xl bg-primary-600 text-white flex items-center justify-center mb-10 shadow-xl">
-                                <span className="material-symbols-rounded text-3xl">description</span>
-                            </div>
-                            <h2 className="text-3xl font-black font-display mb-4 tracking-tight">ATS Resume Builder</h2>
-                            <p className="text-gray-500 dark:text-gray-400 mb-10 leading-relaxed font-medium">Generate high-impact, engineering-focused resumes optimized for Applicant Tracking Systems at top-tier tech firms.</p>
-                            <button className="px-8 py-4 bg-primary-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-105 transition-all shadow-xl">Build Resume</button>
-                        </div>
-                        <span className="material-symbols-rounded absolute -right-16 -bottom-16 text-primary-500/5 text-[250px] group-hover:-rotate-12 transition-transform duration-1000">history_edu</span>
-                    </div>
-                </div>
-            </div>
-            <Footer />
-        </div>
-    );
-};
+const ProductsPage = () => (
+    <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-7xl mx-auto px-6 text-center mb-20"><h1 className="text-5xl font-black font-display tracking-tight mb-6">Expert Ecosystem</h1></div><div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-7xl mx-auto px-6">
+        <div className="p-10 rounded-[48px] bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-2xl flex flex-col h-full"><div className="flex-1"><h2 className="text-2xl font-black mb-4 font-display">Technical Quizzes</h2><p className="text-white/80 mb-10 text-sm">Expert-vetted assessments.</p></div><button className="px-8 py-4 bg-white text-primary-700 font-black uppercase tracking-widest text-[10px] rounded-2xl">Launch</button></div>
+        <div className="p-10 rounded-[48px] bg-dark-surface border border-gray-100 dark:border-white/10 shadow-2xl flex flex-col h-full"><div className="flex-1"><h2 className="text-2xl font-black mb-4 font-display">ATS Resume Builder</h2><p className="text-gray-500 dark:text-gray-400 mb-10 text-sm">Engineering-focused resumes.</p></div><button className="px-8 py-4 bg-primary-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl">Build</button></div>
+        <div className="p-10 rounded-[48px] bg-gradient-to-br from-indigo-700 to-purple-800 text-white shadow-2xl flex flex-col h-full"><div className="flex-1"><h2 className="text-2xl font-black mb-4 font-display">Google Advance</h2><p className="text-white/80 mb-10 text-sm">Precision search engine.</p></div><Link to="/products/google-advance" className="px-8 py-4 bg-white text-indigo-800 font-black uppercase tracking-widest text-[10px] rounded-2xl text-center">Open</Link></div>
+    </div><Footer /></div>
+);
 
 const ProfilePage = () => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
-
     if (!user) return <Navigate to="/login" />;
-
     return (
-        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg">
-            <div className="max-w-4xl mx-auto px-6">
-                <div className="bg-gray-50 dark:bg-dark-surface rounded-[48px] border border-gray-100 dark:border-white/5 p-12 shadow-2xl overflow-hidden relative">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/5 blur-3xl rounded-full"></div>
-                    <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
-                        <div className="w-32 h-32 rounded-[32px] bg-primary-600 text-white flex items-center justify-center text-4xl font-black shadow-2xl">
-                            {user.name.charAt(0)}
-                        </div>
-                        <div className="flex-1 text-center md:text-left">
-                            <div className="text-[10px] font-black uppercase tracking-[0.4em] text-primary-500 mb-2">Authenticated User</div>
-                            <h1 className="text-4xl font-black font-display tracking-tight mb-2">{user.name}</h1>
-                            <p className="text-gray-500 font-medium">{user.email}</p>
-                        </div>
-                        <button onClick={() => { logout(); navigate('/'); }} className="px-8 py-4 bg-red-50 dark:bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-[10px] rounded-2xl border border-red-100 dark:border-red-500/20 hover:bg-red-500 hover:text-white transition-all">Sign Out</button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
-                        <div className="p-8 rounded-3xl bg-white dark:bg-dark-bg border border-gray-100 dark:border-white/5">
-                            <div className="text-2xl font-black mb-1">0</div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Completed Path</div>
-                        </div>
-                        <div className="p-8 rounded-3xl bg-white dark:bg-dark-bg border border-gray-100 dark:border-white/5">
-                            <div className="text-2xl font-black mb-1">0</div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Quiz Mastery</div>
-                        </div>
-                        <div className="p-8 rounded-3xl bg-white dark:bg-dark-bg border border-gray-100 dark:border-white/5">
-                            <div className="text-2xl font-black mb-1">PRO</div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Account Type</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <Footer />
-        </div>
+        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-4xl mx-auto px-6"><div className="bg-gray-50 dark:bg-dark-surface rounded-[48px] p-12 shadow-2xl flex flex-col md:flex-row items-center gap-10">
+            <div className="w-32 h-32 rounded-[32px] bg-primary-600 text-white flex items-center justify-center text-4xl font-black">{user.name.charAt(0)}</div>
+            <div className="flex-1 text-center md:text-left"><h1 className="text-4xl font-black font-display mb-2">{user.name}</h1><p className="text-gray-500">{user.email}</p></div>
+            <button onClick={() => { logout(); navigate('/'); }} className="px-8 py-4 bg-red-50 text-red-500 font-black uppercase tracking-widest text-[10px] rounded-2xl border border-red-100">Sign Out</button>
+        </div></div><Footer /></div>
     );
 };
 
 const Navbar = () => {
   const { isDark, toggleTheme } = useContext(ThemeContext);
   const { user } = useContext(AuthContext);
-  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   return (
-    <nav className={`fixed top-0 inset-x-0 z-[100] transition-all duration-500 px-6 ${scrolled || location.pathname !== '/' ? 'h-20 glass border-b border-gray-200 dark:border-white/5' : 'h-24 bg-transparent'}`}>
+    <nav className="fixed top-0 inset-x-0 z-[100] h-20 glass border-b border-gray-200 dark:border-white/5 px-6">
       <div className="max-w-[1920px] mx-auto w-full h-full flex items-center justify-between">
-        <div className="flex items-center gap-12">
-          <Link to="/" className="flex items-center gap-3 font-display font-black text-2xl tracking-tighter">
-            <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-lg shadow-primary-500/20"><span className="material-symbols-rounded text-2xl">school</span></div>
-            <span className="hidden lg:block">BrainLoom</span>
-          </Link>
-          
-          <div className="hidden md:flex items-center gap-10">
-            <Link to="/explore" className={`text-[10px] font-black uppercase tracking-[0.25em] transition-colors ${location.pathname === '/explore' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>
-              Explore
-            </Link>
-            <Link to="/products" className={`text-[10px] font-black uppercase tracking-[0.25em] transition-colors ${location.pathname === '/products' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>
-              Our Products
-            </Link>
-            <Link to="/" className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">
-              About Us
-            </Link>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button onClick={toggleTheme} className="p-3 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors" title="Toggle Theme"><span className="material-symbols-rounded text-2xl">{isDark ? 'light_mode' : 'dark_mode'}</span></button>
-          <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-2 hidden sm:block"></div>
-          {user ? (
-            <div className="flex items-center gap-4">
-              <Link to="/profile" className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl transition-all ${location.pathname === '/profile' ? 'bg-primary-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'}`}>
-                <span className="material-symbols-rounded">account_circle</span>
-                <span className="text-[10px] font-black uppercase tracking-widest">Profile</span>
-              </Link>
-            </div>
-          ) : (
-            <Link to="/login" className="px-8 py-3.5 bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-primary-500/20 active:scale-95">Login</Link>
-          )}
-        </div>
+        <div className="flex items-center gap-12"><Link to="/" className="flex items-center gap-3 font-display font-black text-2xl tracking-tighter"><div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-lg"><span className="material-symbols-rounded">school</span></div><span className="hidden lg:block">BrainLoom</span></Link>
+        <div className="hidden md:flex gap-10"><Link to="/explore" className="text-[10px] font-black uppercase tracking-widest">Explore</Link><Link to="/products" className="text-[10px] font-black uppercase tracking-widest">Products</Link></div></div>
+        <div className="flex items-center gap-4"><button onClick={toggleTheme} className="p-3 text-gray-500"><span className="material-symbols-rounded">{isDark ? 'light_mode' : 'dark_mode'}</span></button>
+        {user ? <Link to="/profile" className="flex items-center gap-2"><span className="material-symbols-rounded">account_circle</span><span className="text-[10px] font-black uppercase">Profile</span></Link> : <Link to="/login" className="px-8 py-3 bg-primary-600 text-white text-[10px] font-black uppercase rounded-2xl">Login</Link>}</div>
       </div>
     </nav>
   );
@@ -723,40 +461,12 @@ const LoginPage = () => {
   const { loginUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-dark-bg transition-colors pt-32">
-      <div className="w-full max-w-sm relative">
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-64 h-64 bg-primary-500/10 blur-3xl rounded-full"></div>
-        <form onSubmit={async e => { 
-          e.preventDefault(); 
-          setLoading(true);
-          try { 
-            await loginUser((e.currentTarget.elements[0] as HTMLInputElement).value, (e.currentTarget.elements[1] as HTMLInputElement).value); 
-            navigate('/');
-          } catch { 
-            alert('Authentication failed. Check credentials.'); 
-          } finally {
-            setLoading(false);
-          }
-        }} className="bg-white dark:bg-dark-surface p-12 rounded-[40px] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] dark:shadow-[0_40px_100px_-20px_rgba(0,0,0,0.6)] space-y-10 border border-gray-100 dark:border-white/5 relative z-10 group overflow-hidden">
-          <div className="text-center">
-            <div className="w-24 h-24 bg-primary-600 text-white rounded-[28px] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-primary-600/30 group-hover:scale-110 transition-transform duration-700">
-               <span className="material-symbols-rounded text-5xl">vpn_key</span>
-            </div>
-            <h1 className="text-3xl font-black font-display tracking-tight mb-2">Admin Terminal</h1>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Encrypted Infrastructure Login</p>
-          </div>
-          <div className="space-y-4">
-            <input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-bold text-lg" placeholder="Email Address" required type="email" />
-            <input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 transition-all font-bold text-lg" type="password" placeholder="Access Token" required />
-          </div>
-          <button type="submit" disabled={loading} className="w-full h-16 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-[0.25em] text-xs rounded-2xl shadow-xl shadow-primary-500/20 transition-all active:scale-95 disabled:opacity-50">
-            {loading ? 'Decrypting...' : 'Verify Identity'}
-          </button>
-        </form>
-      </div>
-    </div>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-dark-bg transition-colors pt-32"><form onSubmit={async e => { e.preventDefault(); setLoading(true); try { await loginUser((e.currentTarget.elements[0] as HTMLInputElement).value, (e.currentTarget.elements[1] as HTMLInputElement).value); navigate('/'); } catch { alert('Auth failed'); } finally { setLoading(false); } }} className="bg-white dark:bg-dark-surface p-12 rounded-[40px] shadow-2xl space-y-10 border border-gray-100 dark:border-white/5 w-full max-w-sm">
+      <div className="text-center"><h1 className="text-3xl font-black font-display mb-2">Admin Login</h1><p className="text-[10px] font-black uppercase text-gray-400">Restricted Access</p></div>
+      <div className="space-y-4"><input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none font-bold" placeholder="Email" required type="email" /><input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none font-bold" type="password" placeholder="Token" required /></div>
+      <button type="submit" disabled={loading} className="w-full h-16 bg-primary-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl">{loading ? 'Verifying...' : 'Login'}</button>
+    </form></div>
   );
 };
 
@@ -764,38 +474,21 @@ export function App() {
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const [user, setUser] = useState<User | null>(() => { const saved = localStorage.getItem('user'); return saved ? JSON.parse(saved) : null; });
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  
-  useEffect(() => { 
-    document.documentElement.classList.toggle('dark', isDark); 
-    localStorage.setItem('theme', isDark ? 'dark' : 'light'); 
-  }, [isDark]);
-  
-  const loginUser = async (email: string, pass: string) => { 
-    const data = await login(email, pass); 
-    setToken(data.token); 
-    setUser(data.user); 
-    localStorage.setItem('token', data.token); 
-    localStorage.setItem('user', JSON.stringify(data.user)); 
-  };
-  
-  const logout = () => { 
-    setUser(null); 
-    setToken(null);
-    localStorage.removeItem('token'); 
-    localStorage.removeItem('user');
-  };
-
+  useEffect(() => { document.documentElement.classList.toggle('dark', isDark); localStorage.setItem('theme', isDark ? 'dark' : 'light'); }, [isDark]);
+  const loginUser = async (email: string, pass: string) => { const data = await login(email, pass); setToken(data.token); setUser(data.user); localStorage.setItem('token', data.token); localStorage.setItem('user', JSON.stringify(data.user)); };
+  const logout = () => { setUser(null); setToken(null); localStorage.removeItem('token'); localStorage.removeItem('user'); };
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme: () => setIsDark(!isDark) }}>
       <AuthContext.Provider value={{ user, token, loginUser, logout, isAdmin: !!user }}>
         <HashRouter>
-          <div className="flex flex-col min-h-screen font-sans bg-white dark:bg-dark-bg text-gray-900 dark:text-gray-100 selection:bg-primary-100 dark:selection:bg-primary-900 selection:text-primary-900 dark:selection:text-primary-100 transition-colors">
+          <div className="flex flex-col min-h-screen font-sans bg-white dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors">
             <Navbar />
             <div className="flex-1">
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/explore" element={<ExplorePage />} />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/products/google-advance" element={<GoogleAdvanceSearchPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/topic/*" element={<TopicViewer />} />
