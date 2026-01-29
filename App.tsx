@@ -1,6 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { HashRouter, Routes, Route, Link, useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { GoogleGenAI } from "@google/genai";
 import { login, fetchRootTopics, fetchTopicBySlug, deleteTopic, saveTopicContent, createTopic } from './services/api';
 import { RichContent } from './components/RichContent';
 import { Topic, User, TopicDetailResponse, EditorBlock, BlockType } from './types';
@@ -48,30 +47,30 @@ const blocksToHtml = (blocks: EditorBlock[]): string => {
 };
 
 const htmlToBlocks = (html: string): EditorBlock[] => {
-  const blocks: EditorBlock[] = [];
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-  const processNode = (node: Node) => {
+  const blocks: EditorBlock[] = [];
+  const createId = () => Math.random().toString(36).substr(2, 9);
+
+  Array.from(doc.body.childNodes).forEach(node => {
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as HTMLElement;
       const tag = el.tagName.toLowerCase();
-      const id = () => Math.random().toString(36).substr(2, 9);
-      if (tag === 'h2') blocks.push({ id: id(), type: 'heading', content: el.innerHTML });
-      else if (tag === 'p') blocks.push({ id: id(), type: 'text', content: el.innerHTML });
-      else if (tag === 'code') blocks.push({ id: id(), type: 'code', content: el.textContent || '', metadata: { language: el.getAttribute('language') || 'javascript' } });
+      if (tag === 'h2') blocks.push({ id: createId(), type: 'heading', content: el.innerHTML });
+      else if (tag === 'p') blocks.push({ id: createId(), type: 'text', content: el.innerHTML });
+      else if (tag === 'code') blocks.push({ id: createId(), type: 'code', content: el.textContent || '', metadata: { language: el.getAttribute('language') || 'javascript' } });
       else if (tag === 'multicode') {
-        const snippets = Array.from(el.querySelectorAll('snippet')).map(s => ({ id: id(), label: s.getAttribute('label') || 'Snippet', language: s.getAttribute('language') || 'javascript', content: s.textContent || '' }));
-        blocks.push({ id: id(), type: 'multi-code', content: '', metadata: { snippets } });
-      } else if (tag === 'note') blocks.push({ id: id(), type: 'note', content: el.innerHTML, metadata: { level: (el.getAttribute('type') as any) || 'info' } });
-      else if (tag === 'img' && !el.closest('carousel')) blocks.push({ id: id(), type: 'image', content: el.getAttribute('src') || '' });
+        const snippets = Array.from(el.querySelectorAll('snippet')).map(s => ({ id: createId(), label: s.getAttribute('label') || 'Snippet', language: s.getAttribute('language') || 'javascript', content: s.textContent || '' }));
+        blocks.push({ id: createId(), type: 'multi-code', content: '', metadata: { snippets } });
+      } else if (tag === 'note') blocks.push({ id: createId(), type: 'note', content: el.innerHTML, metadata: { level: (el.getAttribute('type') as any) || 'info' } });
+      else if (tag === 'img' && !el.closest('carousel')) blocks.push({ id: createId(), type: 'image', content: el.getAttribute('src') || '' });
       else if (tag === 'carousel') {
-        const images = Array.from(el.querySelectorAll('img')).map(img => ({ id: id(), url: img.getAttribute('src') || '', caption: img.getAttribute('alt') || '' }));
-        blocks.push({ id: id(), type: 'carousel', content: '', metadata: { images } });
-      } else Array.from(el.childNodes).forEach(processNode);
+        const images = Array.from(el.querySelectorAll('img')).map(img => ({ id: createId(), url: img.getAttribute('src') || '', caption: img.getAttribute('alt') || '' }));
+        blocks.push({ id: createId(), type: 'carousel', content: '', metadata: { images } });
+      }
     }
-  };
-  Array.from(doc.body.childNodes).forEach(processNode);
-  return blocks.length > 0 ? blocks : [{ id: 'init', type: 'text' as BlockType, content: html }];
+  });
+  return blocks.length > 0 ? blocks : [{ id: createId(), type: 'text', content: '' }];
 };
 
 // --- Components ---
@@ -79,7 +78,6 @@ const htmlToBlocks = (html: string): EditorBlock[] => {
 const Breadcrumbs = ({ slugPath }: { slugPath: string }) => {
   const segments = slugPath.split('/').filter(Boolean);
   let currentPath = '/topic';
-  
   return (
     <nav className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] mb-4 overflow-x-auto no-scrollbar whitespace-nowrap opacity-60">
       <Link to="/" className="text-gray-400 hover:text-primary-600 transition-colors">Platform</Link>
@@ -90,14 +88,7 @@ const Breadcrumbs = ({ slugPath }: { slugPath: string }) => {
         const label = segment.replace(/-/g, ' ');
         return (
           <React.Fragment key={currentPath}>
-            {isLast ? (
-              <span className="text-primary-600 truncate max-w-[150px]">{label}</span>
-            ) : (
-              <>
-                <Link to={currentPath} className="text-gray-400 hover:text-primary-600 transition-colors truncate max-w-[150px]">{label}</Link>
-                <span className="text-gray-300">/</span>
-              </>
-            )}
+            {isLast ? <span className="text-primary-600 truncate max-w-[150px]">{label}</span> : <><Link to={currentPath} className="text-gray-400 hover:text-primary-600 transition-colors truncate max-w-[150px]">{label}</Link><span className="text-gray-300">/</span></>}
           </React.Fragment>
         );
       })}
@@ -122,9 +113,7 @@ const TopicViewer = () => {
     setLoading(true);
     fetchTopicBySlug(slug).then(res => {
       setData(res);
-      const initialBlocks: EditorBlock[] = res.blocks.length > 0 
-        ? htmlToBlocks(res.blocks[0].components[0]?.json.content || '') 
-        : [{ id: 'init', type: 'text' as BlockType, content: '' }];
+      const initialBlocks = res.blocks.length > 0 ? htmlToBlocks(res.blocks[0].components[0]?.json.content || '') : [{ id: 'init', type: 'text' as BlockType, content: '' }];
       setEditorBlocks(initialBlocks);
     }).finally(() => setLoading(false));
   };
@@ -136,13 +125,10 @@ const TopicViewer = () => {
     setIsSaving(true);
     try {
       const html = blocksToHtml(editorBlocks);
-      const existingBlockId = data.blocks[0]?.id; 
-      await saveTopicContent(data.topic.id, html, existingBlockId);
+      await saveTopicContent(data.topic.id, html, data.blocks[0]?.id);
       setIsEditMode(false);
       loadTopic();
-    } catch (e) {
-      alert('Save failed');
-    } finally { setIsSaving(false); }
+    } catch (e) { alert('Save failed'); } finally { setIsSaving(false); }
   };
 
   if (loading) return <div className="p-20 text-center animate-pulse text-primary-600 font-black tracking-widest uppercase text-xs">Synchronizing Knowledge...</div>;
@@ -150,15 +136,12 @@ const TopicViewer = () => {
 
   const NavigationList = () => {
     const sorted = data.children?.sort((a,b) => a.order_no - b.order_no) || [];
-    if (sorted.length === 0) return <div className="py-8 text-center text-[9px] font-black text-gray-300 uppercase tracking-widest italic">Topic sequence complete</div>;
     return (
       <div className="space-y-1">
         {sorted.map((child, idx) => (
-          <Link key={child.id} to={`/topic/${slug}/${child.slug}`}
-            className="flex items-center gap-4 p-4 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-dark-surface hover:text-primary-600 transition-all border border-transparent hover:border-gray-100 dark:hover:border-dark-border group">
+          <Link key={child.id} to={`/topic/${slug}/${child.slug}`} className="flex items-center gap-4 p-4 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-dark-surface hover:text-primary-600 transition-all border border-transparent hover:border-gray-100 dark:hover:border-dark-border group">
             <span className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-dark-bg flex items-center justify-center text-[10px] font-black group-hover:bg-primary-600 group-hover:text-white transition-all">{idx + 1}</span>
             <span className="truncate flex-1">{child.title}</span>
-            <span className="material-symbols-rounded text-base opacity-0 group-hover:opacity-40">chevron_right</span>
           </Link>
         ))}
       </div>
@@ -171,144 +154,40 @@ const TopicViewer = () => {
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div className="flex-1">
             <Breadcrumbs slugPath={slug || ''} />
-            <div className="flex items-center gap-4">
-              <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white font-display leading-tight tracking-tight flex-1">{data.topic.title}</h1>
-              <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden w-12 h-12 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary-600 transition-all border border-gray-100 dark:border-white/10 shadow-sm">
-                <span className="material-symbols-rounded text-2xl">menu_open</span>
-              </button>
-            </div>
+            <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white font-display leading-tight tracking-tight">{data.topic.title}</h1>
           </div>
           {isAdmin && (
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setIsSubtopicModalOpen(true)} className="px-4 py-3 bg-gray-50 dark:bg-white/5 text-gray-400 rounded-xl border border-gray-100 dark:border-white/10 hover:border-primary-500/50 hover:text-primary-600 transition-all flex items-center gap-2" title="New Subtopic">
-                <span className="material-symbols-rounded text-lg">add_notes</span>
-                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Add Subtopic</span>
-              </button>
-              <button onClick={() => deleteTopic(data.topic.id).then(() => navigate('/'))} className="p-3 bg-red-50 text-red-500 rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition-all"><span className="material-symbols-rounded text-lg">delete</span></button>
-              {isEditMode ? (
-                <div className="flex gap-2">
-                  <button onClick={handleSave} disabled={isSaving} className="px-6 py-3 bg-primary-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-xl hover:bg-primary-700 transition-all">{isSaving ? '...' : 'Save'}</button>
-                  <button onClick={() => setIsEditMode(false)} className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-400 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-gray-200 transition-all">Cancel</button>
-                </div>
-              ) : (
-                <button onClick={() => setIsEditMode(true)} className="px-6 py-3 bg-primary-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-xl hover:bg-primary-700 transition-all">Edit Page</button>
-              )}
+            <div className="flex gap-2">
+              <button onClick={() => setIsEditMode(!isEditMode)} className="px-6 py-3 bg-primary-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-xl">{isEditMode ? 'Cancel' : 'Edit Page'}</button>
+              {isEditMode && <button onClick={handleSave} disabled={isSaving} className="px-6 py-3 bg-emerald-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-xl">{isSaving ? 'Saving...' : 'Save'}</button>}
             </div>
           )}
         </div>
       </div>
-
       <div className="max-w-7xl mx-auto px-4 pb-32">
         <div className="flex flex-col lg:flex-row gap-16 relative">
-          {isMobileMenuOpen && (
-            <div className="fixed inset-0 z-[150] lg:hidden">
-               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsMobileMenuOpen(false)} />
-               <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-dark-bg p-6 shadow-2xl border-l border-gray-100 dark:border-white/5 overflow-y-auto">
-                 <div className="flex justify-between items-center mb-8 pb-6 border-b border-gray-100 dark:border-white/5">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Course Map</h3>
-                    <button onClick={() => setIsMobileMenuOpen(false)} className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors">
-                      <span className="material-symbols-rounded text-lg">close</span>
-                    </button>
-                 </div>
-                 <NavigationList />
-               </div>
-            </div>
-          )}
-
           <div className="flex-1 min-w-0">
             {isEditMode ? (
-              <div className="max-w-4xl mx-auto animate-fade-in bg-white dark:bg-dark-bg p-8 rounded-3xl shadow-sm border border-gray-50 dark:border-white/5 min-h-[600px]">
-                <Toolbar onAddBlock={(type) => setEditorBlocks([...editorBlocks, { id: Math.random().toString(36).substr(2, 9), type, content: '', metadata: type === 'multi-code' ? { snippets: [{ id: '1', label: 'Index', language: 'javascript', content: '' }] } : {} }])} />
-                <div className="space-y-0 relative">
+              <div className="max-w-4xl mx-auto p-8 rounded-3xl border border-gray-100 dark:border-white/5 bg-white dark:bg-dark-bg min-h-[500px]">
+                <Toolbar onAddBlock={(type) => setEditorBlocks([...editorBlocks, { id: Math.random().toString(36).substr(2, 9), type, content: '' }])} />
+                <div className="space-y-4">
                   {editorBlocks.map((block, idx) => (
-                    <div key={block.id} className="group relative w-full">
-                      <BlockActions 
-                        onDelete={() => setEditorBlocks(editorBlocks.filter(b => b.id !== block.id))} 
-                        onMoveUp={() => { if (idx === 0) return; const b = [...editorBlocks]; [b[idx], b[idx-1]] = [b[idx-1], b[idx]]; setEditorBlocks(b); }} 
-                        onMoveDown={() => { if (idx === editorBlocks.length-1) return; const b = [...editorBlocks]; [b[idx], b[idx+1]] = [b[idx+1], b[idx]]; setEditorBlocks(b); }} 
-                        isFirst={idx === 0} 
-                        isLast={idx === editorBlocks.length-1} 
-                      />
-                      <div className="w-full">
-                        {block.type === 'heading' || block.type === 'text' ? <TextBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} /> : null}
-                        {block.type === 'code' ? <CodeBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} /> : null}
-                        {block.type === 'multi-code' ? <MultiCodeBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} /> : null}
-                        {block.type === 'note' ? <NoteBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} /> : null}
-                        {block.type === 'image' ? <ImageBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} /> : null}
-                        {block.type === 'carousel' ? <CarouselBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} /> : null}
-                      </div>
+                    <div key={block.id} className="group relative">
+                      <BlockActions onDelete={() => setEditorBlocks(editorBlocks.filter(b => b.id !== block.id))} onMoveUp={() => {}} onMoveDown={() => {}} isFirst={idx === 0} isLast={idx === editorBlocks.length-1} />
+                      <TextBlock block={block} onChange={u => setEditorBlocks(editorBlocks.map(x => x.id === u.id ? u : x))} />
                     </div>
                   ))}
                 </div>
               </div>
-            ) : (
-              <>
-                <RichContent htmlContent={data.blocks[0]?.components[0]?.json.content || ''} />
-                <div className="max-w-4xl mx-auto mt-20 pt-10 border-t border-gray-100 dark:border-white/5 flex flex-col sm:flex-row justify-between gap-4">
-                  <button onClick={() => navigate(-1)} className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-sm font-bold text-gray-600 dark:text-gray-300 group w-full sm:w-auto">
-                    <span className="material-symbols-rounded group-hover:-translate-x-1 transition-transform">arrow_back</span>
-                    Previous Context
-                  </button>
-                  {data.children && data.children.length > 0 && (
-                     <Link to={`/topic/${slug}/${data.children.sort((a,b) => a.order_no - b.order_no)[0].slug}`} className="flex items-center justify-between sm:justify-center gap-3 px-8 py-4 rounded-2xl bg-primary-600 hover:bg-primary-700 text-white shadow-xl shadow-primary-600/20 hover:shadow-primary-600/30 transition-all text-sm font-black uppercase tracking-widest group w-full sm:w-auto">
-                       <span>Start: {data.children.sort((a,b) => a.order_no - b.order_no)[0].title}</span>
-                       <span className="material-symbols-rounded group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                     </Link>
-                  )}
-                </div>
-              </>
-            )}
+            ) : <RichContent htmlContent={data.blocks[0]?.components[0]?.json.content || ''} />}
           </div>
-          <aside className="hidden lg:block w-72 sticky top-28 h-fit space-y-6">
-            <div className="bg-gray-50/50 dark:bg-white/5 rounded-2xl p-6 border border-gray-100 dark:border-white/5 shadow-sm">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Topic Hierarchy</h3>
-              <NavigationList />
-              {isAdmin && (
-                <button onClick={() => setIsSubtopicModalOpen(true)} className="w-full mt-6 py-3 border border-dashed border-gray-300 dark:border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-400 hover:text-primary-600 hover:border-primary-500/50 transition-all">
-                  + Add Sub-Topic
-                </button>
-              )}
-            </div>
+          <aside className="hidden lg:block w-72 sticky top-28 h-fit bg-gray-50/50 dark:bg-white/5 p-6 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Topic Hierarchy</h3>
+            <NavigationList />
           </aside>
         </div>
       </div>
       <Footer />
-      <CreateTopicModal isOpen={isSubtopicModalOpen} onClose={() => setIsSubtopicModalOpen(false)} onSuccess={loadTopic} parentId={data.topic.id} parentTitle={data.topic.title} />
-    </div>
-  );
-};
-
-const CreateTopicModal = ({ isOpen, onClose, onSuccess, parentId = null, parentTitle = null }: { isOpen: boolean; onClose: () => void; onSuccess: () => void; parentId?: number | null; parentTitle?: string | null }) => {
-  const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
-  const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (title) setSlug(title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
-  }, [title]);
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true);
-    try {
-      await createTopic({ title, slug, description: description || '', parent_id: parentId, order_no: 0 });
-      onSuccess(); onClose(); setTitle(''); setSlug(''); setDescription('');
-    } catch (err) { alert('Failed to create topic'); } finally { setLoading(false); }
-  };
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white dark:bg-dark-surface rounded-3xl shadow-2xl p-10 border border-gray-100 dark:border-white/10 animate-fade-in">
-        <div className="flex justify-between items-center mb-8">
-          <div><h2 className="text-2xl font-black font-display tracking-tight">{parentId ? 'Add Subtopic' : 'New Track'}</h2>{parentTitle && <p className="text-[10px] font-black uppercase tracking-widest text-primary-500 mt-1">Under: {parentTitle}</p>}</div>
-          <button onClick={onClose} className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"><span className="material-symbols-rounded">close</span></button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Title</label><input className="w-full h-12 px-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all font-bold" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Topic Title..." /></div>
-          <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Slug (URL Path)</label><input className="w-full h-12 px-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all text-xs font-mono" required value={slug} onChange={e => setSlug(e.target.value)} /></div>
-          <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Description</label><textarea className="w-full h-24 p-4 rounded-xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm resize-none" value={description} onChange={e => setDescription(e.target.value)} placeholder="What will they learn?" /></div>
-          <button type="submit" disabled={loading} className="w-full h-14 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-xl shadow-primary-500/20 transition-all active:scale-95 disabled:opacity-50 mt-4">{loading ? '...' : 'Create Topic'}</button>
-        </form>
-      </div>
     </div>
   );
 };
@@ -318,21 +197,34 @@ const Footer = () => (
     <div className="max-w-[1920px] mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-16 mb-20">
       <div className="col-span-1 md:col-span-1">
         <Link to="/" className="flex items-center gap-3 font-display font-black text-2xl tracking-tight mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-xl shadow-primary-600/20"><span className="material-symbols-rounded text-3xl">school</span></div>
+          <div className="w-12 h-12 rounded-2xl bg-primary-600 text-white flex items-center justify-center shadow-xl shadow-primary-500/20"><span className="material-symbols-rounded text-3xl">school</span></div>
           BrainLoom
         </Link>
         <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-10 max-w-xs font-medium">The hub for professional engineering excellence. We craft deep technical tracks that bridge the gap between basics and mastery.</p>
       </div>
-      <div className="space-y-8"><h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Mastery Tracks</h4><ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300"><li><Link to="/explore" className="hover:text-primary-600 transition-colors">Explore All</Link></li></ul></div>
+      <div className="space-y-8">
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Mastery Tracks</h4>
+        <ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300">
+          <li><Link to="/explore" className="hover:text-primary-600 transition-colors">Explore All</Link></li>
+        </ul>
+      </div>
       <div className="space-y-8"><h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Our Company</h4><ul className="space-y-4 text-sm font-bold text-gray-600 dark:text-gray-300"><li><Link to="/" className="hover:text-primary-600 transition-colors">About BrainLoom</Link></li></ul></div>
-      <div className="bg-gradient-to-br from-primary-600 to-indigo-700 rounded-[32px] p-10 text-white relative overflow-hidden group shadow-2xl shadow-primary-600/20"><div className="relative z-10"><h4 className="text-2xl font-black mb-4 font-display">Elite Access</h4><p className="text-white/80 text-sm mb-8 font-medium leading-relaxed">Unlock the full platform with a premium plan.</p><button className="w-full py-4 bg-white text-primary-700 font-black uppercase tracking-[0.15em] text-[10px] rounded-2xl shadow-xl hover:scale-105 transition-all">Upgrade Experience</button></div><span className="material-symbols-rounded absolute -right-10 -bottom-10 text-white/10 text-[200px] select-none">verified_user</span></div>
+      <div className="bg-gradient-to-br from-primary-600 to-indigo-700 rounded-[32px] p-10 text-white relative overflow-hidden group shadow-2xl shadow-primary-600/20">
+        <div className="relative z-10">
+          <h4 className="text-2xl font-black mb-4 font-display">Elite Access</h4>
+          <p className="text-white/80 text-sm mb-8 font-medium leading-relaxed">Unlock the full platform with a premium plan.</p>
+          <button className="w-full py-4 bg-white text-primary-700 font-black uppercase tracking-[0.15em] text-[10px] rounded-2xl shadow-xl hover:scale-105 transition-all">Upgrade Experience</button>
+        </div>
+        <span className="material-symbols-rounded absolute -right-10 -bottom-10 text-white/10 text-[200px] select-none">verified_user</span>
+      </div>
     </div>
-    <div className="max-w-[1920px] mx-auto px-6 pt-12 border-t border-gray-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-bold text-gray-400 uppercase tracking-widest"><p>&copy; 2024 BrainLoom Space For Engineering Minds.</p></div>
+    <div className="max-w-[1920px] mx-auto px-6 pt-12 border-t border-gray-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
+      <p>&copy; 2024 BrainLoom.in For Engineering Minds.</p>
+    </div>
   </footer>
 );
 
 const Home = () => {
-  const { isAdmin } = useContext(AuthContext);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -363,69 +255,36 @@ const ExplorePage = () => {
   );
 };
 
-const GoogleAdvanceSearchPage = () => {
-    const [query, setQuery] = useState('');
-    const [site, setSite] = useState('');
-    const [filetype, setFiletype] = useState('');
-    const [inurl, setInurl] = useState('');
-    const [intitle, setIntitle] = useState('');
-    const [exclude, setExclude] = useState('');
-    const [results, setResults] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const fullQuery = useMemo(() => {
-        let q = query.trim();
-        if (site) q += ` site:${site}`;
-        if (filetype) q += ` filetype:${filetype}`;
-        if (inurl) q += ` inurl:${inurl}`;
-        if (intitle) q += ` intitle:${intitle}`;
-        if (exclude) q += ` -${exclude}`;
-        return q.trim();
-    }, [query, site, filetype, inurl, intitle, exclude]);
-    const handleSearch = async () => {
-        if (!fullQuery) return; setLoading(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: "gemini-3-flash-preview",
-                contents: `Search for this information: ${fullQuery}. Provide a list of specific relevant links.`,
-                config: { tools: [{googleSearch: {}}] },
-            });
-            const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-            const searchResults = chunks.filter((c: any) => c.web).map((c: any) => ({
-                title: c.web.title || "Found Source",
-                uri: c.web.uri,
-                snippet: "Reference found in grounding metadata."
-            }));
-            setResults(searchResults);
-        } catch (err) { alert('Search failed.'); } finally { setLoading(false); }
-    };
-    return (
-        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-5xl mx-auto px-6 text-center mb-16">
-            <h1 className="text-5xl font-black font-display tracking-tight mb-6">Google Advance</h1>
-            <p className="text-gray-500 max-w-xl mx-auto">Precision search engine with grounded intelligence.</p>
-        </div><div className="grid grid-cols-1 lg:grid-cols-3 gap-10 max-w-5xl mx-auto px-6">
-            <div className="space-y-4 p-6 rounded-3xl bg-gray-50 dark:bg-dark-surface border border-gray-100 dark:border-white/5 h-fit">
-                <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Query</label><input value={query} onChange={e => setQuery(e.target.value)} className="w-full h-10 px-3 rounded-lg dark:bg-dark-bg border-none outline-none font-bold text-sm" placeholder="Keywords" /></div>
-                <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Site</label><input value={site} onChange={e => setSite(e.target.value)} className="w-full h-10 px-3 rounded-lg dark:bg-dark-bg border-none outline-none font-bold text-sm" placeholder="e.g. stackoverflow.com" /></div>
-                <div><label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Type</label><input value={filetype} onChange={e => setFiletype(e.target.value)} className="w-full h-10 px-3 rounded-lg dark:bg-dark-bg border-none outline-none font-bold text-sm" placeholder="e.g. pdf" /></div>
-                <button onClick={handleSearch} disabled={loading || !fullQuery} className="w-full h-12 bg-primary-600 text-white font-black uppercase text-xs rounded-lg shadow-xl disabled:opacity-50">{loading ? 'Searching...' : 'Search'}</button>
-            </div>
-            <div className="lg:col-span-2 space-y-6 bg-white dark:bg-dark-surface p-8 rounded-[40px] border border-gray-100 dark:border-white/5 min-h-[400px]">
-                {results.map((res, i) => (
-                    <a key={i} href={res.uri} target="_blank" rel="noopener noreferrer" className="block p-5 rounded-2xl bg-gray-50/50 dark:bg-white/5 hover:border-primary-500/30 border border-transparent transition-all"><h4 className="font-bold text-primary-600 mb-1">{res.title}</h4><p className="text-[10px] text-gray-400 truncate mb-2">{res.uri}</p></a>
-                ))}
-                {!results.length && !loading && <div className="h-full flex items-center justify-center opacity-20 font-black uppercase text-xs">Ready for search</div>}
-            </div>
-        </div><Footer /></div>
-    );
-};
-
 const ProductsPage = () => (
-    <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-7xl mx-auto px-6 text-center mb-20"><h1 className="text-5xl font-black font-display tracking-tight mb-6">Expert Ecosystem</h1></div><div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-7xl mx-auto px-6">
-        <div className="p-10 rounded-[48px] bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-2xl flex flex-col h-full"><div className="flex-1"><h2 className="text-2xl font-black mb-4 font-display">Technical Quizzes</h2><p className="text-white/80 mb-10 text-sm">Expert-vetted assessments.</p></div><button className="px-8 py-4 bg-white text-primary-700 font-black uppercase tracking-widest text-[10px] rounded-2xl">Launch</button></div>
-        <div className="p-10 rounded-[48px] bg-dark-surface border border-gray-100 dark:border-white/10 shadow-2xl flex flex-col h-full"><div className="flex-1"><h2 className="text-2xl font-black mb-4 font-display">ATS Resume Builder</h2><p className="text-gray-500 dark:text-gray-400 mb-10 text-sm">Engineering-focused resumes.</p></div><button className="px-8 py-4 bg-primary-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl">Build</button></div>
-        <div className="p-10 rounded-[48px] bg-gradient-to-br from-indigo-700 to-purple-800 text-white shadow-2xl flex flex-col h-full"><div className="flex-1"><h2 className="text-2xl font-black mb-4 font-display">Google Advance</h2><p className="text-white/80 mb-10 text-sm">Precision search engine.</p></div><Link to="/products/google-advance" className="px-8 py-4 bg-white text-indigo-800 font-black uppercase tracking-widest text-[10px] rounded-2xl text-center">Open</Link></div>
-    </div><Footer /></div>
+    <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors">
+        <div className="max-w-7xl mx-auto px-6 text-center mb-24">
+            <h1 className="text-5xl font-black font-display tracking-tight mb-6">Expert Ecosystem</h1>
+            <p className="text-gray-500 max-w-xl mx-auto text-lg">Specialized tools designed to amplify your technical output and streamline your discovery process.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-7xl mx-auto px-6">
+            <div className="p-10 rounded-[48px] bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-2xl flex flex-col h-full relative overflow-hidden group">
+                <div className="relative z-10 flex-1">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center mb-8 shadow-xl">
+                        <span className="material-symbols-rounded text-3xl">quiz</span>
+                    </div>
+                    <h2 className="text-3xl font-black mb-4 font-display tracking-tight leading-tight">Technical Quizzes</h2>
+                    <p className="text-white/80 mb-12 text-sm leading-relaxed font-medium">Expert-vetted assessments tailored for system design, algorithms, and infrastructure mastery.</p>
+                </div>
+                <button className="relative z-10 px-8 py-5 bg-white text-primary-700 font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">Launch Terminal</button>
+            </div>
+            <div className="p-10 rounded-[48px] bg-dark-surface border border-gray-100 dark:border-white/10 shadow-2xl flex flex-col h-full relative overflow-hidden group">
+                <div className="relative z-10 flex-1">
+                    <div className="w-16 h-16 rounded-2xl bg-primary-600 text-white flex items-center justify-center mb-8 shadow-xl">
+                        <span className="material-symbols-rounded text-3xl">description</span>
+                    </div>
+                    <h2 className="text-3xl font-black mb-4 font-display tracking-tight leading-tight text-white">ATS Resume Engine</h2>
+                    <p className="text-gray-500 dark:text-gray-400 mb-12 text-sm leading-relaxed font-medium">Engineering-focused resumes optimized for automated tracking systems and top-tier tech screening.</p>
+                </div>
+                <button className="relative z-10 px-8 py-5 bg-primary-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all">Initialize Builder</button>
+            </div>
+        </div>
+        <Footer />
+    </div>
 );
 
 const ProfilePage = () => {
@@ -433,11 +292,20 @@ const ProfilePage = () => {
     const navigate = useNavigate();
     if (!user) return <Navigate to="/login" />;
     return (
-        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors"><div className="max-w-4xl mx-auto px-6"><div className="bg-gray-50 dark:bg-dark-surface rounded-[48px] p-12 shadow-2xl flex flex-col md:flex-row items-center gap-10">
-            <div className="w-32 h-32 rounded-[32px] bg-primary-600 text-white flex items-center justify-center text-4xl font-black">{user.name.charAt(0)}</div>
-            <div className="flex-1 text-center md:text-left"><h1 className="text-4xl font-black font-display mb-2">{user.name}</h1><p className="text-gray-500">{user.email}</p></div>
-            <button onClick={() => { logout(); navigate('/'); }} className="px-8 py-4 bg-red-50 text-red-500 font-black uppercase tracking-widest text-[10px] rounded-2xl border border-red-100">Sign Out</button>
-        </div></div><Footer /></div>
+        <div className="min-h-screen pt-32 pb-32 animate-fade-in bg-white dark:bg-dark-bg transition-colors">
+            <div className="max-w-4xl mx-auto px-6">
+                <div className="bg-gray-50 dark:bg-dark-surface rounded-[64px] p-16 shadow-2xl flex flex-col md:flex-row items-center gap-12 border border-gray-100 dark:border-white/5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-primary-600/5 blur-[100px] rounded-full"></div>
+                    <div className="w-40 h-40 rounded-[48px] bg-primary-600 text-white flex items-center justify-center text-6xl font-black shadow-2xl relative z-10">{user.name.charAt(0)}</div>
+                    <div className="flex-1 text-center md:text-left relative z-10">
+                        <h1 className="text-5xl font-black font-display mb-3 tracking-tight">{user.name}</h1>
+                        <p className="text-lg text-gray-500 font-medium mb-8">{user.email}</p>
+                        <button onClick={() => { logout(); navigate('/'); }} className="px-10 py-4 bg-red-50 dark:bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-[10px] rounded-2xl border border-red-100 transition-all shadow-xl">Terminate Session</button>
+                    </div>
+                </div>
+            </div>
+            <Footer />
+        </div>
     );
 };
 
@@ -446,12 +314,25 @@ const Navbar = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   return (
-    <nav className="fixed top-0 inset-x-0 z-[100] h-20 glass border-b border-gray-200 dark:border-white/5 px-6">
+    <nav className="fixed top-0 inset-x-0 z-[100] h-20 glass border-b border-gray-200 dark:border-white/5 px-8">
       <div className="max-w-[1920px] mx-auto w-full h-full flex items-center justify-between">
-        <div className="flex items-center gap-12"><Link to="/" className="flex items-center gap-3 font-display font-black text-2xl tracking-tighter"><div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-lg"><span className="material-symbols-rounded">school</span></div><span className="hidden lg:block">BrainLoom</span></Link>
-        <div className="hidden md:flex gap-10"><Link to="/explore" className="text-[10px] font-black uppercase tracking-widest">Explore</Link><Link to="/products" className="text-[10px] font-black uppercase tracking-widest">Products</Link></div></div>
-        <div className="flex items-center gap-4"><button onClick={toggleTheme} className="p-3 text-gray-500"><span className="material-symbols-rounded">{isDark ? 'light_mode' : 'dark_mode'}</span></button>
-        {user ? <Link to="/profile" className="flex items-center gap-2"><span className="material-symbols-rounded">account_circle</span><span className="text-[10px] font-black uppercase">Profile</span></Link> : <Link to="/login" className="px-8 py-3 bg-primary-600 text-white text-[10px] font-black uppercase rounded-2xl">Login</Link>}</div>
+        <div className="flex items-center gap-16">
+            <Link to="/" className="flex items-center gap-3 font-display font-black text-2xl tracking-tighter">
+                <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-lg shadow-primary-500/20"><span className="material-symbols-rounded">school</span></div>
+                <span className="hidden lg:block">BrainLoom</span>
+            </Link>
+            <div className="hidden md:flex gap-12">
+                <Link to="/explore" className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname === '/explore' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>Explore Directory</Link>
+                <Link to="/products" className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname.startsWith('/products') ? 'text-primary-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>Intelligence Ecosystem</Link>
+            </div>
+        </div>
+        <div className="flex items-center gap-6">
+            <button onClick={toggleTheme} className="p-3 text-gray-500 hover:text-primary-600 transition-colors">
+                <span className="material-symbols-rounded text-2xl">{isDark ? 'light_mode' : 'dark_mode'}</span>
+            </button>
+            <div className="w-px h-6 bg-gray-100 dark:bg-white/10 hidden sm:block"></div>
+            {user ? <Link to="/profile" className="text-[10px] font-black uppercase tracking-widest">Control Center</Link> : <Link to="/login" className="px-10 py-3.5 bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-xl">Login Portal</Link>}
+        </div>
       </div>
     </nav>
   );
@@ -462,11 +343,16 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-dark-bg transition-colors pt-32"><form onSubmit={async e => { e.preventDefault(); setLoading(true); try { await loginUser((e.currentTarget.elements[0] as HTMLInputElement).value, (e.currentTarget.elements[1] as HTMLInputElement).value); navigate('/'); } catch { alert('Auth failed'); } finally { setLoading(false); } }} className="bg-white dark:bg-dark-surface p-12 rounded-[40px] shadow-2xl space-y-10 border border-gray-100 dark:border-white/5 w-full max-w-sm">
-      <div className="text-center"><h1 className="text-3xl font-black font-display mb-2">Admin Login</h1><p className="text-[10px] font-black uppercase text-gray-400">Restricted Access</p></div>
-      <div className="space-y-4"><input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none font-bold" placeholder="Email" required type="email" /><input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none font-bold" type="password" placeholder="Token" required /></div>
-      <button type="submit" disabled={loading} className="w-full h-16 bg-primary-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl">{loading ? 'Verifying...' : 'Login'}</button>
-    </form></div>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-dark-bg transition-colors pt-32">
+        <form onSubmit={async e => { e.preventDefault(); setLoading(true); try { await loginUser((e.currentTarget.elements[0] as HTMLInputElement).value, (e.currentTarget.elements[1] as HTMLInputElement).value); navigate('/'); } catch { alert('Authentication failed.'); } finally { setLoading(false); } }} className="bg-white dark:bg-dark-surface p-14 rounded-[56px] shadow-2xl space-y-12 border border-gray-100 dark:border-white/5 w-full max-w-md">
+            <div className="text-center"><h1 className="text-4xl font-black font-display tracking-tight mb-3">Admin Terminal</h1><p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400">Encrypted Infrastructure Login</p></div>
+            <div className="space-y-6">
+                <input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none font-bold text-lg" placeholder="Entity Email" required type="email" />
+                <input className="w-full h-16 px-6 rounded-2xl border border-gray-100 dark:border-white/10 dark:bg-dark-bg outline-none font-bold text-lg" type="password" placeholder="Access Token" required />
+            </div>
+            <button type="submit" disabled={loading} className="w-full h-18 bg-primary-600 hover:bg-primary-700 text-white font-black uppercase tracking-[0.3em] text-xs rounded-2xl shadow-2xl">{loading ? 'Decrypting...' : 'Verify Identity'}</button>
+        </form>
+    </div>
   );
 };
 
@@ -488,7 +374,6 @@ export function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/explore" element={<ExplorePage />} />
                 <Route path="/products" element={<ProductsPage />} />
-                <Route path="/products/google-advance" element={<GoogleAdvanceSearchPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/topic/*" element={<TopicViewer />} />

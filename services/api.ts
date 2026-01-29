@@ -1,7 +1,6 @@
-
 import { AuthResponse, TopicListResponse, TopicDetailResponse, Topic } from '../types';
 
-const API_BASE_URL = 'https://api.brainloom.space/api';
+const API_BASE_URL = 'https://api.brainloom.in/api';
 
 // Helper to get headers with Auth token
 const getAuthHeaders = () => {
