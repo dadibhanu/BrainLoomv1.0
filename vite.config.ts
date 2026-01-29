@@ -19,8 +19,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: '0.0.0.0',
       allowedHosts: [
-        'brainloom.space',
-        'www.brainloom.space'
+        'brainloom.in',
+        'www.brainloom.in'
       ]
     },
 
