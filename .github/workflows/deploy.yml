@@ -1,4 +1,4 @@
-name: Deploy Cyber App
+name: Deploy Brainloom App
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/apps/cyber
+            cd ~/apps/brainloom
             git pull origin main
             docker compose down
             docker compose up -d --build
